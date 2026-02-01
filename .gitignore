@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# uv
+.uv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Hugging Face models cache (downloaded locally, not committed)
+*.bin
+*.safetensors
+*.h5
+*.onnx
+
+# Data files (user's card images)
+data/samples/
+data/cards/
+!data/samples/.gitkeep
+!data/cards/.gitkeep
+
+# Output files
+output/
+*.png
+*.jpg
+*.jpeg
+!data/templates/*.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
