@@ -18,6 +18,12 @@ from shadowbox.visualization.layers import (
     create_stacked_layer_view,
     show_clustering_summary,
 )
+from shadowbox.visualization.render import (
+    RenderOptions,
+    ShadowboxRenderer,
+    render_layers_exploded,
+    render_shadowbox,
+)
 
 __all__ = [
     # heatmap
@@ -32,4 +38,9 @@ __all__ = [
     "create_depth_layer_comparison",
     "create_stacked_layer_view",
     "show_clustering_summary",
+    # render
+    "RenderOptions",
+    "ShadowboxRenderer",
+    "render_shadowbox",
+    "render_layers_exploded",
 ]
