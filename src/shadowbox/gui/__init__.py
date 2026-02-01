@@ -4,6 +4,12 @@
 GUI機能を提供します。
 """
 
+from shadowbox.gui.image_selector import (
+    ImageSelector,
+    URLImageLoader,
+    create_image_selector,
+    load_from_url,
+)
 from shadowbox.gui.template_editor import (
     QuickRegionSelector,
     TemplateEditor,
@@ -11,7 +17,13 @@ from shadowbox.gui.template_editor import (
 )
 
 __all__ = [
+    # template_editor
     "TemplateEditor",
     "QuickRegionSelector",
     "select_illustration_region",
+    # image_selector
+    "ImageSelector",
+    "URLImageLoader",
+    "create_image_selector",
+    "load_from_url",
 ]
