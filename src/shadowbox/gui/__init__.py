@@ -11,6 +11,7 @@ from shadowbox.gui.image_selector import (
     load_from_url,
 )
 from shadowbox.gui.template_editor import (
+    JupyterRegionSelector,
     QuickRegionSelector,
     TemplateEditor,
     select_illustration_region,
@@ -20,6 +21,7 @@ __all__ = [
     # template_editor
     "TemplateEditor",
     "QuickRegionSelector",
+    "JupyterRegionSelector",
     "select_illustration_region",
     # image_selector
     "ImageSelector",

@@ -4,14 +4,11 @@
 インタラクティブにイラスト領域を選択するGUIを提供します。
 """
 
-from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Rectangle
-from matplotlib.widgets import RectangleSelector
-from numpy.typing import NDArray
 from PIL import Image
 
 from shadowbox.config.template import BoundingBox, CardTemplate
@@ -20,8 +17,7 @@ from shadowbox.config.template import BoundingBox, CardTemplate
 class TemplateEditor:
     """テンプレートエディタ。
 
-    matplotlibのRectangleSelectorを使用して、ユーザーが
-    画像上で矩形領域を選択できるGUIを提供します。
+    2点クリックで矩形領域を選択できるGUIを提供します。
 
     Attributes:
         image: 編集対象の画像。
@@ -40,8 +36,9 @@ class TemplateEditor:
         self._selected_bbox: Optional[BoundingBox] = None
         self._fig: Optional[plt.Figure] = None
         self._ax: Optional[plt.Axes] = None
-        self._selector: Optional[RectangleSelector] = None
         self._current_rect: Optional[Rectangle] = None
+        self._click_points: list = []
+        self._temp_marker: Optional[any] = None
 
     @property
     def selected_bbox(self) -> Optional[BoundingBox]:
@@ -51,13 +48,13 @@ class TemplateEditor:
     def select_region(
         self,
         image: Image.Image,
-        title: str = "イラスト領域を選択（ドラッグで矩形を描画）",
+        title: str = "イラスト領域を選択",
         initial_bbox: Optional[BoundingBox] = None,
     ) -> Optional[BoundingBox]:
         """画像上で領域を選択。
 
-        matplotlibのウィンドウが開き、ユーザーがドラッグで
-        矩形を選択できます。ウィンドウを閉じると選択が確定します。
+        matplotlibのウィンドウが開き、ユーザーが2点クリックで
+        矩形を選択できます。
 
         Args:
             image: 領域選択対象の画像。
@@ -73,6 +70,7 @@ class TemplateEditor:
         """
         self._image = image
         self._selected_bbox = initial_bbox
+        self._click_points = []
 
         # 画像をNumPy配列に変換
         img_array = np.array(image)
@@ -86,56 +84,82 @@ class TemplateEditor:
         if initial_bbox is not None:
             self._draw_rect(initial_bbox)
 
-        # RectangleSelectorを設定
-        self._selector = RectangleSelector(
-            self._ax,
-            self._on_select,
-            useblit=True,
-            button=[1],  # 左クリックのみ
-            minspanx=5,
-            minspany=5,
-            spancoords="pixels",
-            interactive=True,
-            props=dict(facecolor="red", edgecolor="red", alpha=0.3, linewidth=2),
-        )
-
         # 操作説明を追加
         self._fig.text(
             0.5,
             0.02,
-            "ドラッグで選択 | Enterで確定 | Escでキャンセル",
+            "左クリック2回で矩形を指定（左上→右下） | 右クリックでリセット | ウィンドウを閉じて確定",
             ha="center",
             fontsize=10,
         )
 
-        # キーイベントを設定
-        self._fig.canvas.mpl_connect("key_press_event", self._on_key_press)
+        # クリックイベントを設定
+        self._fig.canvas.mpl_connect("button_press_event", self._on_click)
 
         # 表示（ブロッキング）
         plt.show()
 
         return self._selected_bbox
 
-    def _on_select(self, eclick: any, erelease: any) -> None:
-        """矩形選択時のコールバック。
+    def _on_click(self, event: any) -> None:
+        """クリックイベントのハンドラ。
 
         Args:
-            eclick: クリック開始イベント。
-            erelease: クリック終了イベント。
+            event: マウスイベント。
         """
-        x1, y1 = int(eclick.xdata), int(eclick.ydata)
-        x2, y2 = int(erelease.xdata), int(erelease.ydata)
+        # 画像領域外のクリックは無視
+        if event.inaxes != self._ax:
+            return
 
-        # 座標を正規化（左上と右下）
-        x = min(x1, x2)
-        y = min(y1, y2)
-        width = abs(x2 - x1)
-        height = abs(y2 - y1)
+        if event.button == 1:  # 左クリック
+            x, y = int(event.xdata), int(event.ydata)
+            self._click_points.append((x, y))
+            print(f"点{len(self._click_points)}: ({x}, {y})")
 
-        if width > 0 and height > 0:
-            self._selected_bbox = BoundingBox(x=x, y=y, width=width, height=height)
-            self._draw_rect(self._selected_bbox)
-            print(f"選択: {self._selected_bbox}")
+            # 1点目のマーカーを表示
+            if len(self._click_points) == 1:
+                if self._temp_marker is not None:
+                    self._temp_marker.remove()
+                self._temp_marker = self._ax.plot(x, y, 'r+', markersize=20, markeredgewidth=3)[0]
+                self._fig.canvas.draw()
+
+            # 2点揃ったら矩形を描画
+            if len(self._click_points) == 2:
+                x1, y1 = self._click_points[0]
+                x2, y2 = self._click_points[1]
+
+                # 座標を正規化（左上と右下）
+                left = min(x1, x2)
+                top = min(y1, y2)
+                width = abs(x2 - x1)
+                height = abs(y2 - y1)
+
+                if width > 0 and height > 0:
+                    self._selected_bbox = BoundingBox(x=left, y=top, width=width, height=height)
+                    self._draw_rect(self._selected_bbox)
+                    print(f"選択完了: {self._selected_bbox}")
+                    print("ウィンドウを閉じて確定、または右クリックでリセット")
+
+                # マーカーを削除
+                if self._temp_marker is not None:
+                    self._temp_marker.remove()
+                    self._temp_marker = None
+
+                # クリックポイントをリセット（次の選択に備える）
+                self._click_points = []
+                self._fig.canvas.draw()
+
+        elif event.button == 3:  # 右クリック：リセット
+            self._click_points = []
+            if self._temp_marker is not None:
+                self._temp_marker.remove()
+                self._temp_marker = None
+            if self._current_rect is not None:
+                self._current_rect.remove()
+                self._current_rect = None
+            self._selected_bbox = None
+            self._fig.canvas.draw()
+            print("リセットしました")
 
     def _draw_rect(self, bbox: BoundingBox) -> None:
         """矩形を描画。
@@ -159,23 +183,6 @@ class TemplateEditor:
         )
         self._ax.add_patch(self._current_rect)
         self._fig.canvas.draw()
-
-    def _on_key_press(self, event: any) -> None:
-        """キー押下イベントのハンドラ。
-
-        Args:
-            event: キーイベント。
-        """
-        if event.key == "enter":
-            # 確定
-            if self._selected_bbox is not None:
-                print("領域を確定しました")
-                plt.close(self._fig)
-        elif event.key == "escape":
-            # キャンセル
-            self._selected_bbox = None
-            print("キャンセルしました")
-            plt.close(self._fig)
 
     def create_template(
         self,
@@ -287,3 +294,162 @@ def select_illustration_region(image: Image.Image) -> Optional[BoundingBox]:
         ...     print(f"Selected: {bbox}")
     """
     return QuickRegionSelector.select(image)
+
+
+class JupyterRegionSelector:
+    """Jupyter Notebook用の領域選択ツール。
+
+    ipywidgets と %matplotlib widget を使用して、
+    Jupyter環境でインタラクティブに領域を選択できます。
+
+    Example:
+        >>> selector = JupyterRegionSelector(image)
+        >>> selector.show()
+        >>> # クリックで選択後...
+        >>> bbox = selector.get_bbox()
+    """
+
+    def __init__(self, image: Image.Image) -> None:
+        """セレクターを初期化。
+
+        Args:
+            image: 選択対象の画像。
+        """
+        self._image = image
+        self._selected_bbox: Optional[BoundingBox] = None
+        self._click_points: list = []
+        self._fig: Optional[plt.Figure] = None
+        self._ax: Optional[plt.Axes] = None
+        self._temp_marker: Optional[any] = None
+        self._current_rect: Optional[Rectangle] = None
+        self._status_text: Optional[any] = None
+
+    def show(self) -> None:
+        """選択UIを表示。
+
+        Jupyter Notebook のセル内に画像とインタラクティブUIを表示します。
+        左クリック2回で矩形を選択し、get_bbox() で結果を取得できます。
+        """
+        import matplotlib
+        if 'widget' not in matplotlib.get_backend().lower():
+            print("警告: %matplotlib widget を実行してから使用してください")
+
+        img_array = np.array(self._image)
+
+        self._fig, self._ax = plt.subplots(1, 1, figsize=(10, 10))
+        self._ax.imshow(img_array)
+        self._ax.set_title("左クリック2回で矩形を選択 | 右クリックでリセット")
+
+        # ステータステキスト
+        self._status_text = self._ax.text(
+            0.5, -0.05, "1点目をクリックしてください",
+            transform=self._ax.transAxes,
+            ha="center", fontsize=12, color="blue"
+        )
+
+        # クリックイベントを接続
+        self._fig.canvas.mpl_connect("button_press_event", self._on_click)
+
+        plt.tight_layout()
+        plt.show()
+
+    def _on_click(self, event: any) -> None:
+        """クリックイベントのハンドラ。"""
+        if event.inaxes != self._ax:
+            return
+
+        if event.button == 1:  # 左クリック
+            x, y = int(event.xdata), int(event.ydata)
+            self._click_points.append((x, y))
+
+            if len(self._click_points) == 1:
+                # 1点目のマーカーを表示
+                if self._temp_marker is not None:
+                    self._temp_marker.remove()
+                self._temp_marker = self._ax.plot(
+                    x, y, 'r+', markersize=20, markeredgewidth=3
+                )[0]
+                self._status_text.set_text(f"1点目: ({x}, {y}) - 2点目をクリック")
+                self._fig.canvas.draw_idle()
+
+            elif len(self._click_points) == 2:
+                # 2点目で矩形を確定
+                x1, y1 = self._click_points[0]
+                x2, y2 = self._click_points[1]
+
+                left = min(x1, x2)
+                top = min(y1, y2)
+                width = abs(x2 - x1)
+                height = abs(y2 - y1)
+
+                if width > 0 and height > 0:
+                    self._selected_bbox = BoundingBox(
+                        x=left, y=top, width=width, height=height
+                    )
+                    self._draw_rect(self._selected_bbox)
+                    self._status_text.set_text(
+                        f"選択完了: ({left}, {top}, {width}x{height}) | "
+                        "右クリックでリセット | get_bbox()で取得"
+                    )
+                    self._status_text.set_color("green")
+
+                # マーカーを削除
+                if self._temp_marker is not None:
+                    self._temp_marker.remove()
+                    self._temp_marker = None
+
+                self._click_points = []
+                self._fig.canvas.draw_idle()
+
+        elif event.button == 3:  # 右クリック：リセット
+            self._click_points = []
+            if self._temp_marker is not None:
+                self._temp_marker.remove()
+                self._temp_marker = None
+            if self._current_rect is not None:
+                self._current_rect.remove()
+                self._current_rect = None
+            self._selected_bbox = None
+            self._status_text.set_text("リセット - 1点目をクリックしてください")
+            self._status_text.set_color("blue")
+            self._fig.canvas.draw_idle()
+
+    def _draw_rect(self, bbox: BoundingBox) -> None:
+        """矩形を描画。"""
+        if self._current_rect is not None:
+            self._current_rect.remove()
+
+        self._current_rect = Rectangle(
+            (bbox.x, bbox.y),
+            bbox.width,
+            bbox.height,
+            linewidth=3,
+            edgecolor="lime",
+            facecolor="none",
+            linestyle="-",
+        )
+        self._ax.add_patch(self._current_rect)
+        self._fig.canvas.draw_idle()
+
+    def get_bbox(self) -> Optional[BoundingBox]:
+        """選択された領域を取得。
+
+        Returns:
+            選択されたBoundingBox。未選択の場合はNone。
+        """
+        return self._selected_bbox
+
+    def get_cropped(self) -> Optional[Image.Image]:
+        """選択領域で切り抜いた画像を取得。
+
+        Returns:
+            切り抜いた画像。未選択の場合はNone。
+        """
+        if self._selected_bbox is None:
+            return None
+        bbox = self._selected_bbox
+        return self._image.crop((
+            bbox.x, bbox.y,
+            bbox.x + bbox.width,
+            bbox.y + bbox.height
+        ))

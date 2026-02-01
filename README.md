@@ -31,12 +31,20 @@ pip install -e .
 # For Jupyter notebook support
 uv sync --extra jupyter
 
-# For standalone GUI app
+# For standalone GUI app (PyQt6)
 uv sync --extra gui
 
 # For everything
 uv sync --all-extras
 ```
+
+| オプション | 含まれるパッケージ         | 用途                                        |
+| ---------- | -------------------------- | ------------------------------------------- |
+| `jupyter`  | jupyter, ipykernel, ipympl | Jupyter Notebook での実行、**手動領域選択** |
+| `gui`      | PyQt6                      | スタンドアロンGUIアプリ                     |
+| `all`      | 上記すべて                 | フル機能                                    |
+
+> **Note**: Jupyter Notebook で手動領域選択（`select_illustration_region`）を使用する場合、`jupyter` オプションに含まれる `ipympl` が必要です。`%matplotlib widget` バックエンドでインタラクティブな操作が可能になります。
 
 ## Quick Start
 
