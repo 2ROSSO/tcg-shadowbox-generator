@@ -38,13 +38,16 @@ uv sync --extra gui
 uv sync --all-extras
 ```
 
-| オプション | 含まれるパッケージ         | 用途                                        |
-| ---------- | -------------------------- | ------------------------------------------- |
-| `jupyter`  | jupyter, ipykernel, ipympl | Jupyter Notebook での実行、**手動領域選択** |
-| `gui`      | PyQt6                      | スタンドアロンGUIアプリ                     |
-| `all`      | 上記すべて                 | フル機能                                    |
+| オプション | 含まれるパッケージ                 | 用途                                                      |
+| ---------- | ---------------------------------- | --------------------------------------------------------- |
+| `jupyter`  | jupyter, ipykernel, ipympl, plotly | Jupyter Notebook での実行、**手動領域選択**、**3Dビュー** |
+| `gui`      | PyQt6                              | スタンドアロンGUIアプリ                                   |
+| `all`      | 上記すべて                         | フル機能                                                  |
 
-> **Note**: Jupyter Notebook で手動領域選択（`select_illustration_region`）を使用する場合、`jupyter` オプションに含まれる `ipympl` が必要です。`%matplotlib widget` バックエンドでインタラクティブな操作が可能になります。
+> **Note**: Jupyter Notebook で以下の機能を使用するには `jupyter` オプションが必要です:
+>
+> - **手動領域選択**: `ipympl` により `%matplotlib widget` バックエンドでインタラクティブな操作が可能
+> - **3Dビュー**: `plotly` により `render_shadowbox()` がセル内でインタラクティブ3D表示されます
 
 ## Quick Start
 
@@ -93,7 +96,7 @@ uv run python -m shadowbox.gui.app
 
 ## Project Structure
 
-```
+```text
 shadowbox-generator/
 ├── src/shadowbox/
 │   ├── core/           # Pipeline, depth, clustering, mesh
