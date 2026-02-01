@@ -84,7 +84,7 @@ class TestRegionDetector:
         assert isinstance(result, DetectionResult)
         assert isinstance(result.bbox, BoundingBox)
         assert 0.0 <= result.confidence <= 1.0
-        assert result.method in ["edge_detection", "color_difference", "contour_detection", "default"]
+        assert result.method in ["edge_detection", "color_difference", "contour_detection", "complexity_analysis", "default"]
 
     def test_detect_simple_image(self, simple_image: Image.Image) -> None:
         """シンプルな画像での検出をテスト。"""

@@ -104,6 +104,11 @@ class RegionDetector:
         if contour_result is not None:
             results.append(contour_result)
 
+        # 方法4: 彩度・複雑度ベースの検出
+        complexity_result = self._detect_by_complexity(cv_image)
+        if complexity_result is not None:
+            results.append(complexity_result)
+
         # 結果がない場合はデフォルトの矩形を返す
         if not results:
             default_bbox = self._create_default_bbox(width, height)
@@ -154,6 +159,11 @@ class RegionDetector:
         # 輪郭ベースの候補（複数）
         contour_results = self._detect_multiple_by_contours(cv_image, max_candidates)
         results.extend(contour_results)
+
+        # 彩度・複雑度ベースの候補
+        complexity_result = self._detect_by_complexity(cv_image)
+        if complexity_result is not None:
+            results.append(complexity_result)
 
         # 信頼度でソートして上位を返す
         results.sort(key=lambda r: r.confidence, reverse=True)
@@ -312,6 +322,147 @@ class RegionDetector:
             bbox=BoundingBox(x=x, y=y, width=w, height=h),
             confidence=min(confidence, 1.0),
             method="color_difference",
+        )
+
+    def _detect_by_complexity(
+        self,
+        cv_image: NDArray[np.uint8],
+    ) -> Optional[DetectionResult]:
+        """彩度・複雑度ベースの領域検出。
+
+        イラスト領域は通常:
+        - 色の多様性が高い（彩度の分散が大きい）
+        - エッジ密度が高い（詳細なテクスチャ）
+        - カードの中央付近に位置する
+
+        Args:
+            cv_image: OpenCV形式の画像。
+
+        Returns:
+            検出結果。検出できない場合はNone。
+        """
+        height, width = cv_image.shape[:2]
+
+        # グリッドサイズ（縦12分割、横8分割）
+        grid_rows, grid_cols = 12, 8
+        cell_h = height // grid_rows
+        cell_w = width // grid_cols
+
+        # 画像が小さすぎる場合は処理をスキップ
+        if cell_h < 2 or cell_w < 2:
+            return None
+
+        # HSVに変換して彩度を取得
+        hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
+        saturation = hsv[:, :, 1].astype(np.float32)
+
+        # エッジ検出
+        gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray, 50, 150)
+
+        # 各セルのスコアを計算
+        scores = np.zeros((grid_rows, grid_cols))
+
+        for row in range(grid_rows):
+            for col in range(grid_cols):
+                y1 = row * cell_h
+                y2 = min((row + 1) * cell_h, height)
+                x1 = col * cell_w
+                x2 = min((col + 1) * cell_w, width)
+
+                # 彩度の分散（色の多様性）
+                cell_sat = saturation[y1:y2, x1:x2]
+                sat_variance = np.var(cell_sat) / 255.0  # 正規化
+
+                # エッジ密度（複雑さ）
+                cell_edges = edges[y1:y2, x1:x2]
+                edge_density = np.sum(cell_edges > 0) / cell_edges.size
+
+                # 彩度の平均（カラフルさ）
+                sat_mean = np.mean(cell_sat) / 255.0
+
+                # 位置ボーナス（中央付近を優先）
+                # TCGカードは上部10-25%にタイトル、下部30-40%にテキスト
+                row_center = (row + 0.5) / grid_rows
+                col_center = (col + 0.5) / grid_cols
+
+                # イラストは縦方向で20-70%付近
+                if 0.15 <= row_center <= 0.65:
+                    vertical_bonus = 1.0
+                elif 0.10 <= row_center <= 0.70:
+                    vertical_bonus = 0.7
+                else:
+                    vertical_bonus = 0.3
+
+                # 横方向は中央を優先
+                horizontal_bonus = 1.0 - abs(col_center - 0.5) * 0.5
+
+                # 総合スコア
+                base_score = (
+                    sat_variance * 0.3 +      # 色の多様性
+                    edge_density * 0.3 +       # エッジ密度
+                    sat_mean * 0.2 +           # 彩度
+                    0.2                        # ベーススコア
+                )
+                scores[row, col] = base_score * vertical_bonus * horizontal_bonus
+
+        # 最適な矩形領域を探索（スライディングウィンドウ）
+        best_score = 0
+        best_region = None
+
+        # さまざまなウィンドウサイズで探索
+        for win_h in range(3, min(8, grid_rows - 1)):  # 高さ3-7セル
+            for win_w in range(4, min(7, grid_cols)):   # 幅4-6セル
+                for start_row in range(grid_rows - win_h + 1):
+                    for start_col in range(grid_cols - win_w + 1):
+                        window_scores = scores[
+                            start_row:start_row + win_h,
+                            start_col:start_col + win_w
+                        ]
+                        avg_score = np.mean(window_scores)
+
+                        # アスペクト比ボーナス（イラストは縦長〜正方形が多い）
+                        aspect = (win_w * cell_w) / (win_h * cell_h)
+                        if 0.6 <= aspect <= 1.2:
+                            aspect_bonus = 1.0
+                        elif 0.4 <= aspect <= 1.5:
+                            aspect_bonus = 0.8
+                        else:
+                            aspect_bonus = 0.5
+
+                        final_score = avg_score * aspect_bonus
+
+                        if final_score > best_score:
+                            best_score = final_score
+                            best_region = (start_row, start_col, win_h, win_w)
+
+        if best_region is None:
+            return None
+
+        start_row, start_col, win_h, win_w = best_region
+
+        # ピクセル座標に変換
+        x = start_col * cell_w
+        y = start_row * cell_h
+        w = win_w * cell_w
+        h = win_h * cell_h
+
+        # 境界チェック
+        w = min(w, width - x)
+        h = min(h, height - y)
+
+        # 面積チェック
+        area_ratio = (w * h) / (width * height)
+        if not (self._min_area_ratio <= area_ratio <= self._max_area_ratio):
+            return None
+
+        # 信頼度（スコアを0-1に正規化）
+        confidence = min(best_score * 2.0, 1.0)
+
+        return DetectionResult(
+            bbox=BoundingBox(x=x, y=y, width=w, height=h),
+            confidence=confidence,
+            method="complexity_analysis",
         )
 
     def _detect_by_contours(
