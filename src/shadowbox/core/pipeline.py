@@ -96,6 +96,7 @@ class ShadowboxPipeline:
         auto_detect: bool = False,
         k: Optional[int] = None,
         include_frame: bool = True,
+        include_card_frame: bool = False,
     ) -> PipelineResult:
         """画像からシャドーボックスメッシュを生成。
 
@@ -106,6 +107,8 @@ class ShadowboxPipeline:
             auto_detect: イラスト領域を自動検出するかどうか。
             k: レイヤー数（Noneの場合は自動探索）。
             include_frame: フレームを含めるかどうか。
+            include_card_frame: カードのフレーム部分を含めるかどうか。
+                Trueの場合、イラスト領域外のピクセルを最前面の深度で統合。
 
         Returns:
             PipelineResultオブジェクト。
@@ -123,6 +126,9 @@ class ShadowboxPipeline:
             >>>
             >>> # 自動検出を使用（将来実装予定）
             >>> result = pipeline.process(image, auto_detect=True)
+            >>>
+            >>> # カードフレームも含める
+            >>> result = pipeline.process(image, auto_detect=True, include_card_frame=True)
         """
         # 1. 画像を読み込み
         if isinstance(image, (str, Image.Image)):
@@ -154,10 +160,26 @@ class ShadowboxPipeline:
         else:
             cropped_pil = pil_image
 
-        cropped_array = image_to_array(cropped_pil)
+        # 4. 深度推定とカードフレーム統合
+        if include_card_frame and bbox is not None:
+            # イラスト領域のみで深度推定
+            depth_map_cropped = self._depth_estimator.estimate(cropped_pil)
 
-        # 4. 深度推定
-        depth_map = self._depth_estimator.estimate(cropped_pil)
+            # 元画像サイズの深度マップを作成（フレーム部分は0.0=最前面）
+            full_height, full_width = original_array.shape[:2]
+            depth_map = np.zeros((full_height, full_width), dtype=np.float32)
+
+            # イラスト領域に推定深度を貼り付け
+            depth_map[bbox.y : bbox.y + bbox.height, bbox.x : bbox.x + bbox.width] = (
+                depth_map_cropped
+            )
+
+            # 以降の処理は元画像全体で実施
+            cropped_array = original_array
+        else:
+            # 既存の処理
+            cropped_array = image_to_array(cropped_pil)
+            depth_map = self._depth_estimator.estimate(cropped_pil)
 
         # 5. 最適なkを探索または使用
         if k is None:

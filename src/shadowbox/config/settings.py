@@ -44,6 +44,7 @@ class DepthEstimationSettings:
     model_name: str = "depth-anything/Depth-Anything-V2-Small-hf"
     device: Literal["cpu", "cuda", "mps", "auto"] = "auto"
     batch_size: int = 1
+    invert_depth: bool = True  # Depth Anything v2 は大きい値=手前のため反転が必要
 
 
 @dataclass

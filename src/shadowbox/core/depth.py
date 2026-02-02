@@ -127,6 +127,10 @@ class DepthAnythingEstimator:
         # [0, 1]の範囲に正規化
         depth = self._normalize_depth(depth)
 
+        # 深度を反転（大きい値=手前 → 小さい値=手前に変換）
+        if self._settings.invert_depth:
+            depth = 1.0 - depth
+
         return depth
 
     def _normalize_depth(self, depth: NDArray[np.float32]) -> NDArray[np.float32]:
