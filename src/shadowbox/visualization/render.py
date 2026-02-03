@@ -5,7 +5,7 @@
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -46,23 +46,27 @@ class RenderOptions:
 
     Attributes:
         background_color: 背景色 (R, G, B) 各0-255。
-        point_size: ポイントのサイズ。
+        point_size: ポイントのサイズ（pointsモード時）。
+        mesh_size: メッシュの各ポイントを表す四角形のサイズ（meshモード時）。
         show_axes: 軸を表示するかどうか。
         show_frame: フレームを表示するかどうか。
         window_size: ウィンドウサイズ (幅, 高さ)。
         title: ウィンドウタイトル。
         interactive: インタラクティブモードを有効にするか。
         layer_opacity: レイヤーの不透明度 (0.0-1.0)。
+        render_mode: 描画モード ("points": ポイント, "mesh": メッシュ面)。
     """
 
     background_color: Tuple[int, int, int] = (30, 30, 30)
     point_size: float = 3.0
+    mesh_size: float = 0.008
     show_axes: bool = False
     show_frame: bool = True
     window_size: Tuple[int, int] = (1200, 800)
     title: str = "Shadowbox 3D Viewer"
     interactive: bool = True
     layer_opacity: float = 1.0
+    render_mode: Literal["points", "mesh"] = "points"
 
 
 class ShadowboxRenderer:
@@ -325,6 +329,49 @@ class ShadowboxRenderer:
             self._plotter = None
 
 
+def _points_to_mesh_data(
+    vertices: NDArray,
+    colors: NDArray,
+    size: float = 0.008,
+) -> Tuple[NDArray, NDArray, NDArray]:
+    """ポイントをメッシュデータ（四角形）に変換。
+
+    Args:
+        vertices: 頂点座標 (N, 3)。
+        colors: 頂点色 (N, 3)。
+        size: 各ポイントを表す四角形のサイズ。
+
+    Returns:
+        (mesh_vertices, mesh_faces, face_colors) のタプル。
+    """
+    n = len(vertices)
+    half = size / 2
+
+    # 各ポイントを4頂点に展開
+    mesh_vertices = np.zeros((n * 4, 3), dtype=np.float32)
+    face_colors = np.zeros((n * 2, 3), dtype=np.uint8)
+    faces = np.zeros((n * 2, 3), dtype=np.int32)
+
+    for i, (v, c) in enumerate(zip(vertices, colors)):
+        base = i * 4
+        # 四角形の4頂点
+        mesh_vertices[base] = [v[0] - half, v[1] - half, v[2]]
+        mesh_vertices[base + 1] = [v[0] + half, v[1] - half, v[2]]
+        mesh_vertices[base + 2] = [v[0] + half, v[1] + half, v[2]]
+        mesh_vertices[base + 3] = [v[0] - half, v[1] + half, v[2]]
+
+        # 2つの三角形
+        face_base = i * 2
+        faces[face_base] = [base, base + 1, base + 2]
+        faces[face_base + 1] = [base, base + 2, base + 3]
+
+        # 面の色（2面とも同じ色）
+        face_colors[face_base] = c
+        face_colors[face_base + 1] = c
+
+    return mesh_vertices, faces, face_colors
+
+
 def _render_with_plotly(mesh: ShadowboxMesh, options: Optional[RenderOptions] = None):
     """Plotlyを使用してJupyter内でインタラクティブ3D表示。
 
@@ -340,31 +387,63 @@ def _render_with_plotly(mesh: ShadowboxMesh, options: Optional[RenderOptions] = 
     opts = options or RenderOptions()
     traces = []
 
-    # 各レイヤーをScatter3dとして追加
-    for i, layer in enumerate(mesh.layers):
-        if len(layer.vertices) == 0:
-            continue
+    if opts.render_mode == "mesh":
+        # メッシュモード: 各ポイントを四角形（2三角形）として描画
+        for i, layer in enumerate(mesh.layers):
+            if len(layer.vertices) == 0:
+                continue
 
-        # RGB色を文字列に変換
-        colors = [
-            f"rgb({c[0]},{c[1]},{c[2]})"
-            for c in layer.colors
-        ]
+            # ポイントをメッシュデータに変換
+            mesh_verts, mesh_faces, face_colors = _points_to_mesh_data(
+                layer.vertices, layer.colors, opts.mesh_size
+            )
 
-        trace = go.Scatter3d(
-            x=layer.vertices[:, 0],
-            y=layer.vertices[:, 1],
-            z=layer.vertices[:, 2],
-            mode="markers",
-            marker=dict(
-                size=opts.point_size,
-                color=colors,
+            # 面の色をintensityとcolorscaleで表現
+            # Plotlyでは面ごとの色をfacecolorで指定
+            face_color_strs = [
+                f"rgb({c[0]},{c[1]},{c[2]})" for c in face_colors
+            ]
+
+            trace = go.Mesh3d(
+                x=mesh_verts[:, 0],
+                y=mesh_verts[:, 1],
+                z=mesh_verts[:, 2],
+                i=mesh_faces[:, 0],
+                j=mesh_faces[:, 1],
+                k=mesh_faces[:, 2],
+                facecolor=face_color_strs,
                 opacity=opts.layer_opacity,
-            ),
-            name=f"Layer {i}",
-            hoverinfo="skip",
-        )
-        traces.append(trace)
+                name=f"Layer {i}",
+                hoverinfo="skip",
+                flatshading=True,
+            )
+            traces.append(trace)
+    else:
+        # ポイントモード（従来）: Scatter3dで描画
+        for i, layer in enumerate(mesh.layers):
+            if len(layer.vertices) == 0:
+                continue
+
+            # RGB色を文字列に変換
+            colors = [
+                f"rgb({c[0]},{c[1]},{c[2]})"
+                for c in layer.colors
+            ]
+
+            trace = go.Scatter3d(
+                x=layer.vertices[:, 0],
+                y=layer.vertices[:, 1],
+                z=layer.vertices[:, 2],
+                mode="markers",
+                marker=dict(
+                    size=opts.point_size,
+                    color=colors,
+                    opacity=opts.layer_opacity,
+                ),
+                name=f"Layer {i}",
+                hoverinfo="skip",
+            )
+            traces.append(trace)
 
     # フレームをMesh3dとして追加
     if opts.show_frame and mesh.frame is not None:
@@ -418,12 +497,15 @@ def _render_with_plotly(mesh: ShadowboxMesh, options: Optional[RenderOptions] = 
 def render_shadowbox(
     mesh: ShadowboxMesh,
     options: Optional[RenderOptions] = None,
+    render_mode: Optional[Literal["points", "mesh"]] = None,
 ):
     """シャドーボックスを簡単にレンダリングするユーティリティ関数。
 
     Args:
         mesh: レンダリングするシャドーボックスメッシュ。
         options: レンダリングオプション。Noneの場合はデフォルト。
+        render_mode: 描画モード。"points"でポイント、"mesh"でメッシュ面。
+            Noneの場合はoptionsの設定を使用。
 
     Returns:
         Jupyter環境: Plotly Figureオブジェクト（インタラクティブ3D）。
@@ -433,14 +515,27 @@ def render_shadowbox(
         Jupyter環境では自動的にPlotlyを使用し、
         セル内でインタラクティブな3D表示が可能になります。
 
+        render_mode="mesh" を使用すると、Blenderのような
+        きれいなメッシュ描画が可能です（頂点数が多いと重くなります）。
+
     Example:
         >>> from shadowbox import create_pipeline
         >>> from shadowbox.visualization import render_shadowbox
         >>>
         >>> pipeline = create_pipeline(use_mock_depth=True)
         >>> result = pipeline.process(image)
-        >>> render_shadowbox(result.mesh)
+        >>> render_shadowbox(result.mesh)  # ポイントモード（デフォルト）
+        >>> render_shadowbox(result.mesh, render_mode="mesh")  # メッシュモード
     """
+    # render_modeが指定された場合、optionsを更新
+    if render_mode is not None:
+        if options is None:
+            options = RenderOptions(render_mode=render_mode)
+        else:
+            # 既存のoptionsをコピーしてrender_modeを上書き
+            from dataclasses import replace
+            options = replace(options, render_mode=render_mode)
+
     if _is_jupyter():
         fig = _render_with_plotly(mesh, options)
         return fig  # Jupyter will auto-display the returned figure
