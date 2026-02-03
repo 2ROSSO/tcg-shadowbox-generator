@@ -152,14 +152,14 @@ class MeshGenerator:
             layers.append(layer_mesh)
 
         # 最背面パネル（カード全体画像）を追加
+        # 最深レイヤーと同じ深さに配置
         if self._settings.back_panel:
-            back_z = -(num_layers + 1) * (self._settings.layer_thickness + self._settings.layer_gap)
+            # 最後のレイヤーと同じZ位置
+            back_z = -num_layers * (self._settings.layer_thickness + self._settings.layer_gap)
             back_panel = self._create_back_panel(image, back_z, num_layers)
             layers.append(back_panel)
-            # フレームの深度計算用にレイヤー数を+1
-            frame_num_layers = num_layers + 1
-        else:
-            frame_num_layers = num_layers
+
+        frame_num_layers = num_layers
 
         # フレームの生成
         frame = None
@@ -235,10 +235,18 @@ class MeshGenerator:
             pixel_indices=pixel_indices,
         )
 
+        layers = [layer]
+
+        # 最背面パネル（カード全体画像）を追加
+        # 最深ポイントと同じ深さに配置
+        z_min = float(vertices_z.min())
+        if self._settings.back_panel:
+            back_panel = self._create_back_panel(image, z_min, layer_index=1)
+            layers.append(back_panel)
+
         # フレームの生成（深度範囲に合わせる）
         frame = None
         if include_frame:
-            z_min = float(vertices_z.min())
             if self._settings.frame_wall_mode == "outer":
                 frame = self._create_frame_mesh_with_walls_custom_depth(
                     image.shape[:2], z_min
@@ -247,10 +255,10 @@ class MeshGenerator:
                 frame = self._create_frame_mesh(image.shape[:2])
 
         # バウンディングボックスの計算
-        bounds = self._calculate_bounds([layer], frame)
+        bounds = self._calculate_bounds(layers, frame)
 
         return ShadowboxMesh(
-            layers=[layer],
+            layers=layers,
             frame=frame,
             bounds=bounds,
         )
