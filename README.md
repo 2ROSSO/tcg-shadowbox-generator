@@ -47,31 +47,49 @@ uv sync --all-extras
 
 ### TripoSR のインストール（オプション）
 
-TripoSR を使用して単一画像から直接3Dメッシュを生成するには、以下の手順で手動インストールが必要です：
+TripoSR を使用して単一画像から直接3Dメッシュを生成するには、以下の手順でセットアップが必要です：
+
+#### 前提条件（Windows）
+
+- **Visual Studio Build Tools** が必要です（C++拡張のビルドに使用）
+- [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) から「C++ によるデスクトップ開発」をインストール
+
+#### インストール手順
 
 ```bash
 # 1. 依存関係をインストール
 uv sync --extra triposr
 
-# 2. TripoSR をクローン
+# 2. TripoSR をクローン（プロジェクトルートに配置）
 git clone https://github.com/VAST-AI-Research/TripoSR.git
 
-# 3. TripoSR の追加依存関係をインストール
-pip install -r TripoSR/requirements.txt
+# 3. torchmcubes をビルド・インストール（C++拡張）
+uv pip install scikit-build-core cmake ninja pybind11
 
-# 4. 実行時に PYTHONPATH を設定
-export PYTHONPATH=$PYTHONPATH:$(pwd)/TripoSR  # Linux/Mac
-set PYTHONPATH=%PYTHONPATH%;%cd%\TripoSR      # Windows
+# Windows の場合、CMAKE_PREFIX_PATH を設定してビルド
+set CMAKE_PREFIX_PATH=.venv\Lib\site-packages\torch\share\cmake
+uv pip install git+https://github.com/tatsy/torchmcubes.git --no-build-isolation
 ```
 
-TripoSR モードを使用するには：
+> **Note**: `TripoSR/` ディレクトリはプロジェクトルートに配置すると自動検出されます。
+> PYTHONPATH の手動設定は不要です。
+
+#### 使用方法
 
 ```python
-from shadowbox.config import ShadowboxSettings
+from shadowbox import create_pipeline, ShadowboxSettings
 
-settings = ShadowboxSettings(model_mode="triposr")
+settings = ShadowboxSettings()
+settings.model_mode = "triposr"
 pipeline = create_pipeline(settings)
+result = pipeline.process(image)
 ```
+
+#### 注意事項
+
+- `rembg`（背景除去）は Python 3.11+ と依存関係が競合するため、オプション化されています
+- 初回実行時にモデル（約1GB）がダウンロードされます
+- GPU（CUDA）推奨ですが、CPUでも動作します（処理速度は遅くなります）
 
 > **Note**: Jupyter Notebook で以下の機能を使用するには `jupyter` オプションが必要です:
 >
