@@ -32,35 +32,38 @@ def export_to_stl(
     """
     filepath = Path(filepath)
 
-    # 全レイヤーの頂点と色を収集
-    all_vertices = []
-    all_colors = []
+    all_triangles = []
 
     for layer in mesh.layers:
-        if len(layer.vertices) > 0:
-            all_vertices.append(layer.vertices)
-            all_colors.append(layer.colors)
+        if len(layer.vertices) == 0:
+            continue
 
-    if not all_vertices:
+        if layer.faces is not None:
+            # 三角形メッシュを直接使用（TripoSR等）
+            layer_triangles = _layer_faces_to_triangles(layer)
+            all_triangles.append(layer_triangles)
+        else:
+            # ポイントを四角形に変換（従来のシャドーボックス）
+            quads = _points_to_quads(layer.vertices, size=0.01)
+            all_triangles.append(quads)
+
+    if not all_triangles:
         raise ValueError("メッシュに頂点がありません")
 
-    vertices = np.vstack(all_vertices)
-
-    # 各ポイントを小さな四角形に変換
-    quads = _points_to_quads(vertices, size=0.01)
+    triangles = np.vstack(all_triangles)
 
     # フレームがある場合は追加
     if mesh.frame is not None:
         frame_triangles = _frame_to_triangles(mesh.frame)
-        quads = np.vstack([quads, frame_triangles])
+        triangles = np.vstack([triangles, frame_triangles])
 
     if binary:
-        _write_binary_stl(filepath, quads)
+        _write_binary_stl(filepath, triangles)
     else:
-        _write_ascii_stl(filepath, quads)
+        _write_ascii_stl(filepath, triangles)
 
     print(f"STLエクスポート完了: {filepath}")
-    print(f"  三角形数: {len(quads)}")
+    print(f"  三角形数: {len(triangles)}")
 
 
 def export_to_obj(
@@ -95,6 +98,7 @@ def export_to_obj(
     half = point_size / 2
 
     # 各レイヤーを出力
+    total_faces = 0
     for layer_idx, layer in enumerate(mesh.layers):
         if len(layer.vertices) == 0:
             continue
@@ -102,30 +106,51 @@ def export_to_obj(
         lines.append(f"# Layer {layer_idx}")
         lines.append(f"o Layer{layer_idx}")
 
-        # 各ポイントを4頂点の四角形として出力
-        for v, c in zip(layer.vertices, layer.colors):
-            if include_colors:
-                r, g, b = c[0] / 255.0, c[1] / 255.0, c[2] / 255.0
-                color_str = f" {r:.4f} {g:.4f} {b:.4f}"
-            else:
-                color_str = ""
+        if layer.faces is not None:
+            # 三角形メッシュを直接出力（TripoSR等）
+            for v, c in zip(layer.vertices, layer.colors):
+                if include_colors:
+                    r, g, b = c[0] / 255.0, c[1] / 255.0, c[2] / 255.0
+                    color_str = f" {r:.4f} {g:.4f} {b:.4f}"
+                else:
+                    color_str = ""
+                lines.append(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}{color_str}")
 
-            # 四角形の4頂点
-            lines.append(f"v {v[0] - half:.6f} {v[1] - half:.6f} {v[2]:.6f}{color_str}")
-            lines.append(f"v {v[0] + half:.6f} {v[1] - half:.6f} {v[2]:.6f}{color_str}")
-            lines.append(f"v {v[0] + half:.6f} {v[1] + half:.6f} {v[2]:.6f}{color_str}")
-            lines.append(f"v {v[0] - half:.6f} {v[1] + half:.6f} {v[2]:.6f}{color_str}")
+            for face in layer.faces:
+                f0 = face[0] + vertex_offset
+                f1 = face[1] + vertex_offset
+                f2 = face[2] + vertex_offset
+                lines.append(f"f {f0} {f1} {f2}")
 
-        # 面を出力（2三角形で四角形を構成）
-        num_points = len(layer.vertices)
-        for i in range(num_points):
-            base = vertex_offset + i * 4
-            # 三角形1: 0-1-2
-            lines.append(f"f {base} {base + 1} {base + 2}")
-            # 三角形2: 0-2-3
-            lines.append(f"f {base} {base + 2} {base + 3}")
+            vertex_offset += len(layer.vertices)
+            total_faces += len(layer.faces)
+        else:
+            # 各ポイントを4頂点の四角形として出力
+            for v, c in zip(layer.vertices, layer.colors):
+                if include_colors:
+                    r, g, b = c[0] / 255.0, c[1] / 255.0, c[2] / 255.0
+                    color_str = f" {r:.4f} {g:.4f} {b:.4f}"
+                else:
+                    color_str = ""
 
-        vertex_offset += num_points * 4
+                # 四角形の4頂点
+                lines.append(f"v {v[0] - half:.6f} {v[1] - half:.6f} {v[2]:.6f}{color_str}")
+                lines.append(f"v {v[0] + half:.6f} {v[1] - half:.6f} {v[2]:.6f}{color_str}")
+                lines.append(f"v {v[0] + half:.6f} {v[1] + half:.6f} {v[2]:.6f}{color_str}")
+                lines.append(f"v {v[0] - half:.6f} {v[1] + half:.6f} {v[2]:.6f}{color_str}")
+
+            # 面を出力（2三角形で四角形を構成）
+            num_points = len(layer.vertices)
+            for i in range(num_points):
+                base = vertex_offset + i * 4
+                # 三角形1: 0-1-2
+                lines.append(f"f {base} {base + 1} {base + 2}")
+                # 三角形2: 0-2-3
+                lines.append(f"f {base} {base + 2} {base + 3}")
+
+            vertex_offset += num_points * 4
+            total_faces += num_points * 2
+
         lines.append("")
 
     # フレームを出力
@@ -150,9 +175,11 @@ def export_to_obj(
     with open(filepath, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
+    total_faces += len(mesh.frame.faces) if mesh.frame else 0
+
     print(f"OBJエクスポート完了: {filepath}")
-    print(f"  ポイント数: {mesh.total_vertices}")
-    print(f"  面数: {mesh.total_vertices * 2 + (len(mesh.frame.faces) if mesh.frame else 0)}")
+    print(f"  頂点数: {mesh.total_vertices}")
+    print(f"  面数: {total_faces}")
 
 
 def export_to_ply(
@@ -186,22 +213,37 @@ def export_to_ply(
         if len(layer.vertices) == 0:
             continue
 
-        for v, c in zip(layer.vertices, layer.colors):
-            # 四角形の4頂点
-            all_vertices.append([v[0] - half, v[1] - half, v[2]])
-            all_vertices.append([v[0] + half, v[1] - half, v[2]])
-            all_vertices.append([v[0] + half, v[1] + half, v[2]])
-            all_vertices.append([v[0] - half, v[1] + half, v[2]])
-
-            # 4頂点に同じ色
-            for _ in range(4):
+        if layer.faces is not None:
+            # 三角形メッシュを直接使用（TripoSR等）
+            for v in layer.vertices:
+                all_vertices.append([v[0], v[1], v[2]])
+            for c in layer.colors:
                 all_colors.append(c)
+            for face in layer.faces:
+                all_faces.append([
+                    face[0] + vertex_offset,
+                    face[1] + vertex_offset,
+                    face[2] + vertex_offset
+                ])
+            vertex_offset += len(layer.vertices)
+        else:
+            # ポイントを四角形に展開（従来のシャドーボックス）
+            for v, c in zip(layer.vertices, layer.colors):
+                # 四角形の4頂点
+                all_vertices.append([v[0] - half, v[1] - half, v[2]])
+                all_vertices.append([v[0] + half, v[1] - half, v[2]])
+                all_vertices.append([v[0] + half, v[1] + half, v[2]])
+                all_vertices.append([v[0] - half, v[1] + half, v[2]])
 
-            # 2つの三角形面
-            base = vertex_offset
-            all_faces.append([base, base + 1, base + 2])
-            all_faces.append([base, base + 2, base + 3])
-            vertex_offset += 4
+                # 4頂点に同じ色
+                for _ in range(4):
+                    all_colors.append(c)
+
+                # 2つの三角形面
+                base = vertex_offset
+                all_faces.append([base, base + 1, base + 2])
+                all_faces.append([base, base + 2, base + 3])
+                vertex_offset += 4
 
     if not all_vertices:
         raise ValueError("メッシュに頂点がありません")
@@ -274,6 +316,20 @@ def _points_to_quads(vertices: np.ndarray, size: float = 0.01) -> np.ndarray:
         # 2つの三角形
         triangles[i * 2] = [p0, p1, p2]
         triangles[i * 2 + 1] = [p0, p2, p3]
+
+    return triangles
+
+
+def _layer_faces_to_triangles(layer) -> np.ndarray:
+    """レイヤーメッシュの面を三角形配列に変換（TripoSR用）。"""
+    triangles = np.zeros((len(layer.faces), 3, 3), dtype=np.float32)
+
+    for i, face in enumerate(layer.faces):
+        triangles[i] = [
+            layer.vertices[face[0]],
+            layer.vertices[face[1]],
+            layer.vertices[face[2]],
+        ]
 
     return triangles
 

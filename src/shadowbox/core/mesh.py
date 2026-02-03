@@ -24,6 +24,9 @@ class LayerMesh:
         z_position: レイヤーのZ座標位置。
         layer_index: レイヤーインデックス（0が最前面）。
         pixel_indices: 元画像でのピクセルインデックス。shape (N, 2)で(row, col)。
+        faces: 三角形面のインデックス。shape (M, 3)。
+            Noneの場合、エクスポート時に各頂点が小さな四角形に変換される。
+            TripoSRなど直接メッシュを生成する場合に使用。
 
     Note:
         座標系は以下のように定義:
@@ -37,6 +40,7 @@ class LayerMesh:
     z_position: float
     layer_index: int
     pixel_indices: NDArray[np.int32]
+    faces: Optional[NDArray[np.int32]] = None
 
 
 @dataclass
