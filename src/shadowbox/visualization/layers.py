@@ -368,11 +368,19 @@ def show_clustering_summary(
     # レイヤー分類
     sorted_indices = np.argsort(centroids)
     index_map = {old: new for new, old in enumerate(sorted_indices)}
-    sorted_labels = np.vectorize(index_map.get)(labels)
+    # カードフレーム用ラベル(-1)を最前面(k)として扱う
+    index_map[-1] = k
+    sorted_labels = np.vectorize(index_map.get)(labels).astype(np.int32)
 
-    cmap = plt.colormaps.get_cmap("tab10").resampled(k)
-    im3 = ax3.imshow(sorted_labels, cmap=cmap, vmin=0, vmax=k - 1)
-    ax3.set_title(f"レイヤー分類（k={k}）")
+    # カードフレームがある場合は色数を+1
+    has_frame_label = -1 in labels
+    num_colors = k + 1 if has_frame_label else k
+    cmap = plt.colormaps.get_cmap("tab10").resampled(num_colors)
+    im3 = ax3.imshow(sorted_labels, cmap=cmap, vmin=0, vmax=num_colors - 1)
+    title = f"レイヤー分類（k={k}）"
+    if has_frame_label:
+        title += " + フレーム"
+    ax3.set_title(title)
     ax3.axis("off")
 
     # 下段にレイヤープレビュー
