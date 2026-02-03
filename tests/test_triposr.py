@@ -187,47 +187,19 @@ class TestCreatePipelineWithTripoSR:
 
 
 class TestTripoSRPipelineFrameGeneration:
-    """TripoSRPipelineのフレーム生成機能のテスト。"""
+    """TripoSRPipelineのフレーム生成機能のテスト。
 
-    def test_create_frame(self) -> None:
-        """_create_frameメソッドのテスト。"""
-        settings = TripoSRSettings()
-        pipeline = TripoSRPipeline(settings)
+    Note:
+        フレーム生成ロジック自体のテストはtest_frame_factory.pyで行う。
+        ここではTripoSRPipelineがframe_factoryを正しく使用しているかをテスト。
+    """
 
-        frame = pipeline._create_frame(z_back=-1.0, z_front=0.5)
-
-        assert isinstance(frame, FrameMesh)
-        assert frame.has_walls is True
-        assert frame.z_position == 0.5
-        assert frame.z_back == -1.0
-        # 12頂点: 前面外側4 + 前面内側4 + 背面外側4
-        assert len(frame.vertices) == 12
-        # 16三角形: 前面枠8 + 外壁8
-        assert len(frame.faces) == 16
-        # 色は暗い色（30, 30, 30）
-        assert np.array_equal(frame.color, np.array([30, 30, 30], dtype=np.uint8))
-
-    def test_create_frame_vertex_positions(self) -> None:
-        """フレームの頂点位置が正しいかテスト。"""
-        settings = TripoSRSettings()
-        pipeline = TripoSRPipeline(settings)
-
-        z_front = 0.0
-        z_back = -0.5
-        frame = pipeline._create_frame(z_back=z_back, z_front=z_front)
-
-        # 前面の頂点はz_frontの位置
-        assert frame.vertices[0, 2] == z_front
-        assert frame.vertices[4, 2] == z_front
-        # 背面の頂点はz_backの位置
-        assert frame.vertices[8, 2] == z_back
-        assert frame.vertices[11, 2] == z_back
-
-    def test_add_frame_to_mesh(self) -> None:
-        """_add_frame_to_meshメソッドのテスト。"""
+    def test_add_frame_to_mesh_walled(self) -> None:
+        """_add_frame_to_meshが壁付きフレームを追加するテスト。"""
         from shadowbox.core.mesh import LayerMesh
 
         settings = TripoSRSettings()
+        # デフォルトはframe_wall_mode="outer"
         pipeline = TripoSRPipeline(settings)
 
         # ダミーメッシュを作成
@@ -263,8 +235,49 @@ class TestTripoSRPipelineFrameGeneration:
         assert result_mesh.frame is not None
         assert isinstance(result_mesh.frame, FrameMesh)
         assert result_mesh.frame.has_walls is True
+        # 12頂点（壁付きフレーム）
+        assert len(result_mesh.frame.vertices) == 12
         # バウンズが再計算されていること
         assert result_mesh.bounds != original_mesh.bounds
+
+    def test_add_frame_to_mesh_plane(self) -> None:
+        """frame_wall_mode='none'で平面フレームを追加するテスト。"""
+        from shadowbox.core.mesh import LayerMesh
+
+        settings = TripoSRSettings()
+        render_settings = RenderSettings(frame_wall_mode="none")
+        pipeline = TripoSRPipeline(settings, render_settings)
+
+        # ダミーメッシュを作成
+        vertices = np.array([
+            [-0.5, -0.5, -0.3],
+            [0.5, 0.5, 0.2],
+        ], dtype=np.float32)
+        colors = np.array([
+            [255, 0, 0],
+            [0, 255, 0],
+        ], dtype=np.uint8)
+        layer = LayerMesh(
+            vertices=vertices,
+            colors=colors,
+            z_position=0.0,
+            layer_index=0,
+            pixel_indices=np.zeros((2, 2), dtype=np.int32),
+        )
+        original_mesh = ShadowboxMesh(
+            layers=[layer],
+            frame=None,
+            bounds=(-0.5, 0.5, -0.5, 0.5, -0.3, 0.2),
+        )
+
+        # フレームを追加
+        result_mesh = pipeline._add_frame_to_mesh(original_mesh)
+
+        # 平面フレームが追加されていること
+        assert result_mesh.frame is not None
+        assert result_mesh.frame.has_walls is False
+        # 8頂点（平面フレーム）
+        assert len(result_mesh.frame.vertices) == 8
 
 
 class TestTripoSRPipelineResult:

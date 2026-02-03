@@ -5,8 +5,10 @@
 生成されたメッシュはVedoなどの3Dレンダラーで表示できます。
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -335,47 +337,13 @@ class MeshGenerator:
         Returns:
             FrameMeshオブジェクト（壁付き）。
         """
-        margin = 0.05
-        outer = 1.0 + margin
-        inner = 1.0
-        z_front = self._settings.frame_z
+        from shadowbox.core.frame_factory import FrameConfig, create_frame
 
-        vertices = np.array([
-            [-outer, -outer, z_front],
-            [+outer, -outer, z_front],
-            [+outer, +outer, z_front],
-            [-outer, +outer, z_front],
-            [-inner, -inner, z_front],
-            [+inner, -inner, z_front],
-            [+inner, +inner, z_front],
-            [-inner, +inner, z_front],
-            [-outer, -outer, z_back],
-            [+outer, -outer, z_back],
-            [+outer, +outer, z_back],
-            [-outer, +outer, z_back],
-        ], dtype=np.float32)
-
-        faces = np.array([
-            [0, 1, 5], [0, 5, 4],
-            [1, 2, 6], [1, 6, 5],
-            [2, 3, 7], [2, 7, 6],
-            [3, 0, 4], [3, 4, 7],
-            [0, 8, 9], [0, 9, 1],
-            [1, 9, 10], [1, 10, 2],
-            [2, 10, 11], [2, 11, 3],
-            [3, 11, 8], [3, 8, 0],
-        ], dtype=np.int32)
-
-        color = np.array([30, 30, 30], dtype=np.uint8)
-
-        return FrameMesh(
-            vertices=vertices,
-            faces=faces,
-            color=color,
-            z_position=z_front,
+        config = FrameConfig(
+            z_front=self._settings.frame_z,
             z_back=z_back,
-            has_walls=True,
         )
+        return create_frame(config)
 
     def _create_back_panel(
         self,
@@ -566,43 +534,10 @@ class MeshGenerator:
         Returns:
             FrameMeshオブジェクト。
         """
-        # フレームのサイズ（イラストより少し大きく）
-        margin = 0.05
-        outer = 1.0 + margin
-        inner = 1.0
+        from shadowbox.core.frame_factory import FrameConfig, create_frame
 
-        # フレームの頂点（外側と内側の4隅ずつ）
-        # 外側
-        vertices = np.array([
-            [-outer, -outer, self._settings.frame_z],  # 0: 外側左下
-            [outer, -outer, self._settings.frame_z],   # 1: 外側右下
-            [outer, outer, self._settings.frame_z],    # 2: 外側右上
-            [-outer, outer, self._settings.frame_z],   # 3: 外側左上
-            # 内側
-            [-inner, -inner, self._settings.frame_z],  # 4: 内側左下
-            [inner, -inner, self._settings.frame_z],   # 5: 内側右下
-            [inner, inner, self._settings.frame_z],    # 6: 内側右上
-            [-inner, inner, self._settings.frame_z],   # 7: 内側左上
-        ], dtype=np.float32)
-
-        # フレームの面（三角形）
-        # 下辺
-        faces = np.array([
-            [0, 1, 5], [0, 5, 4],  # 下辺
-            [1, 2, 6], [1, 6, 5],  # 右辺
-            [2, 3, 7], [2, 7, 6],  # 上辺
-            [3, 0, 4], [3, 4, 7],  # 左辺
-        ], dtype=np.int32)
-
-        # フレームの色（暗い色）
-        color = np.array([30, 30, 30], dtype=np.uint8)
-
-        return FrameMesh(
-            vertices=vertices,
-            faces=faces,
-            color=color,
-            z_position=self._settings.frame_z,
-        )
+        config = FrameConfig(z_front=self._settings.frame_z)
+        return create_frame(config)
 
     def _create_frame_mesh_with_walls(
         self,
@@ -621,56 +556,13 @@ class MeshGenerator:
         Returns:
             FrameMeshオブジェクト（壁付き）。
         """
-        margin = 0.05
-        outer = 1.0 + margin
-        inner = 1.0
-        z_front = self._settings.frame_z
-        z_back = -self._settings.frame_depth  # 固定値を使用
+        from shadowbox.core.frame_factory import FrameConfig, create_frame
 
-        # 12頂点: 前面外側4 + 前面内側4 + 背面外側4
-        vertices = np.array([
-            # 前面外側 (0-3)
-            [-outer, -outer, z_front],
-            [+outer, -outer, z_front],
-            [+outer, +outer, z_front],
-            [-outer, +outer, z_front],
-            # 前面内側 (4-7)
-            [-inner, -inner, z_front],
-            [+inner, -inner, z_front],
-            [+inner, +inner, z_front],
-            [-inner, +inner, z_front],
-            # 背面外側 (8-11)
-            [-outer, -outer, z_back],
-            [+outer, -outer, z_back],
-            [+outer, +outer, z_back],
-            [-outer, +outer, z_back],
-        ], dtype=np.float32)
-
-        # 面の構成: 前面枠8三角形 + 外壁8三角形 = 16三角形
-        faces = np.array([
-            # 前面枠
-            [0, 1, 5], [0, 5, 4],  # 下辺
-            [1, 2, 6], [1, 6, 5],  # 右辺
-            [2, 3, 7], [2, 7, 6],  # 上辺
-            [3, 0, 4], [3, 4, 7],  # 左辺
-            # 外壁（下/右/上/左）
-            [0, 8, 9], [0, 9, 1],   # 下壁
-            [1, 9, 10], [1, 10, 2],  # 右壁
-            [2, 10, 11], [2, 11, 3],  # 上壁
-            [3, 11, 8], [3, 8, 0],   # 左壁
-        ], dtype=np.int32)
-
-        # フレームの色（暗い色）
-        color = np.array([30, 30, 30], dtype=np.uint8)
-
-        return FrameMesh(
-            vertices=vertices,
-            faces=faces,
-            color=color,
-            z_position=z_front,
-            z_back=z_back,
-            has_walls=True,
+        config = FrameConfig(
+            z_front=self._settings.frame_z,
+            z_back=-self._settings.frame_depth,
         )
+        return create_frame(config)
 
     def _calculate_bounds(
         self,
@@ -686,26 +578,6 @@ class MeshGenerator:
         Returns:
             (min_x, max_x, min_y, max_y, min_z, max_z)のタプル。
         """
-        all_vertices = []
+        from shadowbox.core.frame_factory import calculate_bounds
 
-        for layer in layers:
-            if len(layer.vertices) > 0:
-                all_vertices.append(layer.vertices)
-
-        if frame is not None:
-            all_vertices.append(frame.vertices)
-
-        if not all_vertices:
-            # 頂点がない場合はデフォルトのバウンズ
-            return (-1.0, 1.0, -1.0, 1.0, -1.0, 0.0)
-
-        combined = np.vstack(all_vertices)
-
-        return (
-            float(combined[:, 0].min()),
-            float(combined[:, 0].max()),
-            float(combined[:, 1].min()),
-            float(combined[:, 1].max()),
-            float(combined[:, 2].min()),
-            float(combined[:, 2].max()),
-        )
+        return calculate_bounds(layers, frame)
