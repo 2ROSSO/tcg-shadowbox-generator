@@ -142,18 +142,21 @@ class MeshGenerator:
         interp_count = self._settings.layer_interpolation
         pop_out = self._settings.layer_pop_out
 
+        # 額縁の厚み（固定値）
+        frame_depth = self._settings.frame_depth
+        back_z = -frame_depth
+
+        # レイヤー間隔を自動計算（額縁内に均等配置）
+        layer_spacing = frame_depth / num_layers
+
         # 各レイヤーのZ位置を事前計算
         layer_z_positions = []
         for i in range(num_layers):
-            z = -(i + 1) * (self._settings.layer_thickness + self._settings.layer_gap)
+            z = -layer_spacing * (i + 1)
             layer_z_positions.append(z)
 
-        # 最背面のZ位置
-        back_z = -num_layers * (self._settings.layer_thickness + self._settings.layer_gap)
-
         # 飛び出しオフセットを計算（フレーム厚みに対する比率）
-        total_depth = abs(back_z)
-        pop_out_offset = total_depth * pop_out if pop_out > 0 else 0
+        pop_out_offset = frame_depth * pop_out if pop_out > 0 else 0
 
         # フレームの存在確認（labels == -1 があるか）
         has_card_frame = np.any(labels == -1)
@@ -608,7 +611,7 @@ class MeshGenerator:
 
         Args:
             image_shape: 画像の形状 (H, W)。
-            num_layers: レイヤー数（背面Z位置の計算用）。
+            num_layers: レイヤー数（未使用、互換性のため残す）。
 
         Returns:
             FrameMeshオブジェクト（壁付き）。
@@ -617,7 +620,7 @@ class MeshGenerator:
         outer = 1.0 + margin
         inner = 1.0
         z_front = self._settings.frame_z
-        z_back = -num_layers * (self._settings.layer_thickness + self._settings.layer_gap)
+        z_back = -self._settings.frame_depth  # 固定値を使用
 
         # 12頂点: 前面外側4 + 前面内側4 + 背面外側4
         vertices = np.array([

@@ -113,6 +113,7 @@ class RenderSettings:
     layer_thickness: float = 0.1
     layer_gap: float = 0.0
     frame_z: float = 0.0
+    frame_depth: float = 0.5  # 額縁の厚み（固定値、レイヤー数に依存しない）
     background_color: str = "#1a1a2e"
     lighting_intensity: float = 1.0
     point_size: int = 3
