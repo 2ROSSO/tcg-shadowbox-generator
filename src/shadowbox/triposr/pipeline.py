@@ -14,6 +14,7 @@ from PIL import Image
 
 from shadowbox.config.settings import RenderSettings
 from shadowbox.config.template import BoundingBox
+from shadowbox.core.back_panel_factory import create_back_panel
 from shadowbox.core.frame_factory import FrameConfig, calculate_bounds, create_frame
 from shadowbox.core.mesh import ShadowboxMesh
 from shadowbox.triposr.generator import TripoSRGenerator
@@ -105,6 +106,10 @@ class TripoSRPipeline:
         mesh = self._generator.generate(cropped_image)
         print("3Dメッシュ生成完了")
 
+        # 背面パネルを追加（RenderSettings.back_panelを参照）
+        if self._render_settings.back_panel:
+            mesh = self._add_back_panel_to_mesh(mesh, cropped_image)
+
         # フレームを追加
         if include_frame:
             mesh = self._add_frame_to_mesh(mesh)
@@ -113,6 +118,41 @@ class TripoSRPipeline:
             original_image=original_array,
             mesh=mesh,
             bbox=bbox,
+        )
+
+    def _add_back_panel_to_mesh(
+        self,
+        mesh: ShadowboxMesh,
+        image: Image.Image,
+    ) -> ShadowboxMesh:
+        """メッシュに背面パネルを追加。
+
+        Args:
+            mesh: TripoSRで生成されたメッシュ。
+            image: クロップ済みの入力画像。
+
+        Returns:
+            背面パネルを追加したShadowboxMesh。
+        """
+        image_array = image_to_array(image)
+        z_min = mesh.bounds[4]  # min_z
+
+        # メッシュの最背面より少し奥に配置
+        back_panel = create_back_panel(
+            image_array,
+            z=z_min - 0.01,  # 少し奥に
+            layer_index=len(mesh.layers),
+        )
+
+        new_layers = list(mesh.layers) + [back_panel]
+
+        # バウンズを再計算
+        bounds = calculate_bounds(new_layers, mesh.frame)
+
+        return ShadowboxMesh(
+            layers=new_layers,
+            frame=mesh.frame,
+            bounds=bounds,
         )
 
     def _add_frame_to_mesh(self, mesh: ShadowboxMesh) -> ShadowboxMesh:

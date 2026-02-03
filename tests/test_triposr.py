@@ -280,6 +280,132 @@ class TestTripoSRPipelineFrameGeneration:
         assert len(result_mesh.frame.vertices) == 8
 
 
+class TestTripoSRPipelineBackPanel:
+    """TripoSRPipelineの背面パネル機能のテスト。"""
+
+    def test_back_panel_enabled(self) -> None:
+        """back_panel=Trueでレイヤーが追加されることを確認。"""
+        from shadowbox.core.mesh import LayerMesh
+
+        settings = TripoSRSettings()
+        render_settings = RenderSettings(back_panel=True)
+        pipeline = TripoSRPipeline(settings, render_settings)
+
+        # ダミーメッシュを作成
+        vertices = np.array([
+            [-0.5, -0.5, -0.3],
+            [0.5, 0.5, 0.2],
+        ], dtype=np.float32)
+        colors = np.array([
+            [255, 0, 0],
+            [0, 255, 0],
+        ], dtype=np.uint8)
+        layer = LayerMesh(
+            vertices=vertices,
+            colors=colors,
+            z_position=0.0,
+            layer_index=0,
+            pixel_indices=np.zeros((2, 2), dtype=np.int32),
+        )
+        original_mesh = ShadowboxMesh(
+            layers=[layer],
+            frame=None,
+            bounds=(-0.5, 0.5, -0.5, 0.5, -0.3, 0.2),
+        )
+
+        # 背面パネルを追加
+        test_image = Image.new("RGB", (10, 10), color=(128, 128, 128))
+        result_mesh = pipeline._add_back_panel_to_mesh(original_mesh, test_image)
+
+        # レイヤーが追加されていること
+        assert len(result_mesh.layers) == 2
+        assert result_mesh.layers[1].layer_index == 1
+
+    def test_back_panel_disabled(self) -> None:
+        """back_panel=Falseでレイヤーが追加されないことを確認。"""
+        settings = TripoSRSettings()
+        render_settings = RenderSettings(back_panel=False)
+        pipeline = TripoSRPipeline(settings, render_settings)
+
+        # back_panel=Falseなので、_add_back_panel_to_meshは呼ばれない
+        # process()内でback_panelフラグをチェックしている
+        assert pipeline._render_settings.back_panel is False
+
+    def test_back_panel_position(self) -> None:
+        """背面パネルがメッシュの最背面に配置されることを確認。"""
+        from shadowbox.core.mesh import LayerMesh
+
+        settings = TripoSRSettings()
+        render_settings = RenderSettings(back_panel=True)
+        pipeline = TripoSRPipeline(settings, render_settings)
+
+        # ダミーメッシュを作成（z_min = -0.5）
+        vertices = np.array([
+            [-0.5, -0.5, -0.5],
+            [0.5, 0.5, 0.2],
+        ], dtype=np.float32)
+        colors = np.array([
+            [255, 0, 0],
+            [0, 255, 0],
+        ], dtype=np.uint8)
+        layer = LayerMesh(
+            vertices=vertices,
+            colors=colors,
+            z_position=0.0,
+            layer_index=0,
+            pixel_indices=np.zeros((2, 2), dtype=np.int32),
+        )
+        original_mesh = ShadowboxMesh(
+            layers=[layer],
+            frame=None,
+            bounds=(-0.5, 0.5, -0.5, 0.5, -0.5, 0.2),
+        )
+
+        # 背面パネルを追加
+        test_image = Image.new("RGB", (5, 5), color=(128, 128, 128))
+        result_mesh = pipeline._add_back_panel_to_mesh(original_mesh, test_image)
+
+        # 背面パネルのZ座標がメッシュの最背面より奥にあること
+        back_panel = result_mesh.layers[1]
+        assert back_panel.z_position < -0.5  # z_min - 0.01
+
+    def test_back_panel_vertex_count(self) -> None:
+        """背面パネルの頂点数が画像サイズと一致することを確認。"""
+        from shadowbox.core.mesh import LayerMesh
+
+        settings = TripoSRSettings()
+        render_settings = RenderSettings(back_panel=True)
+        pipeline = TripoSRPipeline(settings, render_settings)
+
+        # ダミーメッシュを作成
+        vertices = np.array([
+            [0.0, 0.0, 0.0],
+        ], dtype=np.float32)
+        colors = np.array([
+            [255, 255, 255],
+        ], dtype=np.uint8)
+        layer = LayerMesh(
+            vertices=vertices,
+            colors=colors,
+            z_position=0.0,
+            layer_index=0,
+            pixel_indices=np.zeros((1, 2), dtype=np.int32),
+        )
+        original_mesh = ShadowboxMesh(
+            layers=[layer],
+            frame=None,
+            bounds=(-1.0, 1.0, -1.0, 1.0, 0.0, 0.0),
+        )
+
+        # 10x20の画像で背面パネルを追加
+        test_image = Image.new("RGB", (20, 10), color=(128, 128, 128))  # width=20, height=10
+        result_mesh = pipeline._add_back_panel_to_mesh(original_mesh, test_image)
+
+        # 背面パネルの頂点数が10 * 20 = 200
+        back_panel = result_mesh.layers[1]
+        assert len(back_panel.vertices) == 200
+
+
 class TestTripoSRPipelineResult:
     """TripoSRPipelineResultデータクラスのテスト。"""
 

@@ -363,33 +363,9 @@ class MeshGenerator:
         Returns:
             LayerMeshオブジェクト（全ピクセル）。
         """
-        h, w = image.shape[:2]
+        from shadowbox.core.back_panel_factory import create_back_panel
 
-        # 全ピクセルの座標を取得
-        y_coords, x_coords = np.mgrid[0:h, 0:w]
-        y_coords = y_coords.flatten()
-        x_coords = x_coords.flatten()
-
-        # 座標を[-1, 1]の範囲に正規化
-        vertices_x = (x_coords / (w - 1)) * 2 - 1 if w > 1 else np.zeros_like(x_coords)
-        vertices_y = -((y_coords / (h - 1)) * 2 - 1) if h > 1 else np.zeros_like(y_coords)
-        vertices_z = np.full_like(vertices_x, z)
-
-        vertices = np.stack([vertices_x, vertices_y, vertices_z], axis=1).astype(np.float32)
-
-        # 各頂点の色を取得
-        colors = image.reshape(-1, 3).astype(np.uint8)
-
-        # ピクセルインデックスを保存
-        pixel_indices = np.stack([y_coords, x_coords], axis=1).astype(np.int32)
-
-        return LayerMesh(
-            vertices=vertices,
-            colors=colors,
-            z_position=z,
-            layer_index=layer_index,
-            pixel_indices=pixel_indices,
-        )
+        return create_back_panel(image, z, layer_index)
 
     def _create_frame_only_layer(
         self,
