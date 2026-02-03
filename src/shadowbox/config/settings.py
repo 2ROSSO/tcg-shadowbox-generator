@@ -96,6 +96,8 @@ class RenderSettings:
         cumulative_layers: 累積レイヤーモード。
             Trueの場合、奥のレイヤーは手前のピクセルを継承し、
             最奥のレイヤーは完全な画像になります。
+        back_panel: 最背面にカード全体の画像を追加するかどうか。
+            Trueの場合、シャドーボックスの背景として完全なカード画像が表示されます。
 
     Example:
         >>> # デフォルト設定
@@ -116,6 +118,7 @@ class RenderSettings:
     point_size: int = 3
     frame_wall_mode: Literal["none", "outer"] = "outer"
     cumulative_layers: bool = True
+    back_panel: bool = True
 
 
 @dataclass

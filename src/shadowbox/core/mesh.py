@@ -151,11 +151,21 @@ class MeshGenerator:
             )
             layers.append(layer_mesh)
 
+        # 最背面パネル（カード全体画像）を追加
+        if self._settings.back_panel:
+            back_z = -(num_layers + 1) * (self._settings.layer_thickness + self._settings.layer_gap)
+            back_panel = self._create_back_panel(image, back_z, num_layers)
+            layers.append(back_panel)
+            # フレームの深度計算用にレイヤー数を+1
+            frame_num_layers = num_layers + 1
+        else:
+            frame_num_layers = num_layers
+
         # フレームの生成
         frame = None
         if include_frame:
             if self._settings.frame_wall_mode == "outer":
-                frame = self._create_frame_mesh_with_walls(image.shape[:2], num_layers)
+                frame = self._create_frame_mesh_with_walls(image.shape[:2], frame_num_layers)
             else:
                 frame = self._create_frame_mesh(image.shape[:2])
 
@@ -299,6 +309,52 @@ class MeshGenerator:
             z_position=z_front,
             z_back=z_back,
             has_walls=True,
+        )
+
+    def _create_back_panel(
+        self,
+        image: NDArray[np.uint8],
+        z: float,
+        layer_index: int,
+    ) -> LayerMesh:
+        """最背面のパネル（カード全体画像）を作成。
+
+        全ピクセルを含むレイヤーを生成します。
+
+        Args:
+            image: 元のRGB画像。shape (H, W, 3)。
+            z: このレイヤーのZ座標。
+            layer_index: レイヤーインデックス。
+
+        Returns:
+            LayerMeshオブジェクト（全ピクセル）。
+        """
+        h, w = image.shape[:2]
+
+        # 全ピクセルの座標を取得
+        y_coords, x_coords = np.mgrid[0:h, 0:w]
+        y_coords = y_coords.flatten()
+        x_coords = x_coords.flatten()
+
+        # 座標を[-1, 1]の範囲に正規化
+        vertices_x = (x_coords / (w - 1)) * 2 - 1 if w > 1 else np.zeros_like(x_coords)
+        vertices_y = -((y_coords / (h - 1)) * 2 - 1) if h > 1 else np.zeros_like(y_coords)
+        vertices_z = np.full_like(vertices_x, z)
+
+        vertices = np.stack([vertices_x, vertices_y, vertices_z], axis=1).astype(np.float32)
+
+        # 各頂点の色を取得
+        colors = image.reshape(-1, 3).astype(np.uint8)
+
+        # ピクセルインデックスを保存
+        pixel_indices = np.stack([y_coords, x_coords], axis=1).astype(np.int32)
+
+        return LayerMesh(
+            vertices=vertices,
+            colors=colors,
+            z_position=z,
+            layer_index=layer_index,
+            pixel_indices=pixel_indices,
         )
 
     def _create_layer_mesh(
