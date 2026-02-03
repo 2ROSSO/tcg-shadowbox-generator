@@ -256,9 +256,6 @@ def export_to_ply(
     print(f"  頂点数: {num_vertices}")
     print(f"  面数: {num_faces}")
 
-    print(f"PLYエクスポート完了: {filepath}")
-    print(f"  頂点数: {num_vertices}")
-
 
 def _points_to_quads(vertices: np.ndarray, size: float = 0.01) -> np.ndarray:
     """ポイントを小さな四角形（2三角形）に変換。"""
