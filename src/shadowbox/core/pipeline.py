@@ -354,7 +354,7 @@ class ShadowboxPipeline:
 def create_pipeline(
     settings: Optional[ShadowboxSettings] = None,
     use_mock_depth: bool = False,
-) -> ShadowboxPipeline:
+):
     """設定に基づいてパイプラインを作成するファクトリ関数。
 
     依存性注入を内部で処理し、設定に応じた
@@ -365,15 +365,15 @@ def create_pipeline(
         use_mock_depth: テスト用にモック深度推定器を使用するかどうか。
 
     Returns:
-        設定済みのShadowboxPipelineインスタンス。
+        model_mode="depth"の場合: ShadowboxPipelineインスタンス。
+        model_mode="triposr"の場合: TripoSRPipelineインスタンス。
 
     Example:
-        >>> # デフォルト設定
+        >>> # デフォルト設定（深度推定モード）
         >>> pipeline = create_pipeline()
         >>>
-        >>> # カスタム設定
-        >>> settings = ShadowboxSettings()
-        >>> settings.depth.model_type = "midas"
+        >>> # TripoSRモード
+        >>> settings = ShadowboxSettings(model_mode="triposr")
         >>> pipeline = create_pipeline(settings)
         >>>
         >>> # テスト用（モック深度推定）
@@ -382,6 +382,12 @@ def create_pipeline(
     if settings is None:
         settings = ShadowboxSettings()
 
+    # TripoSRモードの場合
+    if settings.model_mode == "triposr":
+        from shadowbox.triposr import create_triposr_pipeline
+        return create_triposr_pipeline(settings.triposr)
+
+    # 深度推定モード（デフォルト）
     # 深度推定器を作成
     if use_mock_depth:
         depth_estimator: DepthEstimatorProtocol = MockDepthEstimator()

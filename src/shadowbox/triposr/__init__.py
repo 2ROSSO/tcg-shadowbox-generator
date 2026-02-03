@@ -10,9 +10,9 @@ Note:
 
 from shadowbox.triposr.settings import TripoSRSettings
 
-__all__ = ["TripoSRSettings"]
+__all__ = ["TripoSRSettings", "create_triposr_generator", "create_triposr_pipeline"]
 
-# 遅延インポート（オプショナル依存関係のため）
+
 def create_triposr_generator(settings: TripoSRSettings):
     """TripoSR生成器を作成。
 
@@ -27,3 +27,19 @@ def create_triposr_generator(settings: TripoSRSettings):
     """
     from shadowbox.triposr.generator import TripoSRGenerator
     return TripoSRGenerator(settings)
+
+
+def create_triposr_pipeline(settings: TripoSRSettings):
+    """TripoSRパイプラインを作成。
+
+    Args:
+        settings: TripoSR設定。
+
+    Returns:
+        TripoSRPipeline: 設定済みのパイプライン。
+
+    Raises:
+        ImportError: TripoSR依存関係がインストールされていない場合。
+    """
+    from shadowbox.triposr.pipeline import TripoSRPipeline
+    return TripoSRPipeline(settings)
