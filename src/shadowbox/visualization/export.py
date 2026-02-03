@@ -67,16 +67,18 @@ def export_to_obj(
     mesh: ShadowboxMesh,
     filepath: Union[str, Path],
     include_colors: bool = True,
+    point_size: float = 0.008,
 ) -> None:
     """メッシュをOBJ形式でエクスポート。
 
-    頂点カラーを含むOBJファイルを出力します。
-    MTLファイルは生成せず、頂点カラーをOBJ拡張形式で埋め込みます。
+    各ポイントを小さな四角形（2三角形）としてエクスポートし、
+    Blender等の3Dソフトで表示可能にします。
 
     Args:
         mesh: エクスポートするShadowboxMesh。
         filepath: 出力ファイルパス。
         include_colors: 頂点カラーを含めるかどうか。
+        point_size: 各ポイントを表す四角形のサイズ。
 
     Example:
         >>> export_to_obj(result.mesh, "shadowbox.obj")
@@ -86,9 +88,11 @@ def export_to_obj(
     lines = ["# Shadowbox Generator OBJ Export"]
     lines.append(f"# Layers: {mesh.num_layers}")
     lines.append(f"# Total vertices: {mesh.total_vertices}")
+    lines.append("# Each point is rendered as a small quad (2 triangles)")
     lines.append("")
 
     vertex_offset = 1  # OBJは1始まり
+    half = point_size / 2
 
     # 各レイヤーを出力
     for layer_idx, layer in enumerate(mesh.layers):
@@ -98,22 +102,30 @@ def export_to_obj(
         lines.append(f"# Layer {layer_idx}")
         lines.append(f"o Layer{layer_idx}")
 
-        # 頂点を出力（色付き）
-        for i, (v, c) in enumerate(zip(layer.vertices, layer.colors)):
+        # 各ポイントを4頂点の四角形として出力
+        for v, c in zip(layer.vertices, layer.colors):
             if include_colors:
-                # OBJ拡張形式: v x y z r g b（色は0-1に正規化）
                 r, g, b = c[0] / 255.0, c[1] / 255.0, c[2] / 255.0
-                lines.append(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f} {r:.4f} {g:.4f} {b:.4f}")
+                color_str = f" {r:.4f} {g:.4f} {b:.4f}"
             else:
-                lines.append(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}")
+                color_str = ""
 
-        # ポイントを小さな四角形に変換して面を出力
+            # 四角形の4頂点
+            lines.append(f"v {v[0] - half:.6f} {v[1] - half:.6f} {v[2]:.6f}{color_str}")
+            lines.append(f"v {v[0] + half:.6f} {v[1] - half:.6f} {v[2]:.6f}{color_str}")
+            lines.append(f"v {v[0] + half:.6f} {v[1] + half:.6f} {v[2]:.6f}{color_str}")
+            lines.append(f"v {v[0] - half:.6f} {v[1] + half:.6f} {v[2]:.6f}{color_str}")
+
+        # 面を出力（2三角形で四角形を構成）
         num_points = len(layer.vertices)
         for i in range(num_points):
-            # 各ポイントを独立した点として出力
-            lines.append(f"p {vertex_offset + i}")
+            base = vertex_offset + i * 4
+            # 三角形1: 0-1-2
+            lines.append(f"f {base} {base + 1} {base + 2}")
+            # 三角形2: 0-2-3
+            lines.append(f"f {base} {base + 2} {base + 3}")
 
-        vertex_offset += num_points
+        vertex_offset += num_points * 4
         lines.append("")
 
     # フレームを出力
@@ -122,12 +134,13 @@ def export_to_obj(
         lines.append("o Frame")
 
         frame = mesh.frame
+        r, g, b = frame.color[0] / 255.0, frame.color[1] / 255.0, frame.color[2] / 255.0
+        color_str = f" {r:.4f} {g:.4f} {b:.4f}" if include_colors else ""
+
         for v in frame.vertices:
-            r, g, b = frame.color[0] / 255.0, frame.color[1] / 255.0, frame.color[2] / 255.0
-            lines.append(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f} {r:.4f} {g:.4f} {b:.4f}")
+            lines.append(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}{color_str}")
 
         for face in frame.faces:
-            # OBJは1始まりインデックス
             f0, f1, f2 = face[0] + vertex_offset, face[1] + vertex_offset, face[2] + vertex_offset
             lines.append(f"f {f0} {f1} {f2}")
 
@@ -138,7 +151,8 @@ def export_to_obj(
         f.write("\n".join(lines))
 
     print(f"OBJエクスポート完了: {filepath}")
-    print(f"  頂点数: {mesh.total_vertices}")
+    print(f"  ポイント数: {mesh.total_vertices}")
+    print(f"  面数: {mesh.total_vertices * 2 + (len(mesh.frame.faces) if mesh.frame else 0)}")
 
 
 def export_to_ply(
