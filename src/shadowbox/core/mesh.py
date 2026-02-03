@@ -203,9 +203,9 @@ class MeshGenerator:
                     layers.append(interp_layer)
 
         # 最背面パネル（カード全体画像）を追加
-        # 飛び出しオフセット適用
+        # フレームと同じ位置（飛び出しなし）
         if self._settings.back_panel:
-            back_panel_z = back_z + pop_out_offset
+            back_panel_z = back_z  # pop-outなし
             back_panel = self._create_back_panel(image, back_panel_z, num_layers)
             layers.append(back_panel)
 
