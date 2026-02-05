@@ -29,6 +29,7 @@ class MeshGeneratorProtocol(Protocol):
         labels: NDArray[np.int32],
         centroids: NDArray[np.float32],
         include_frame: bool = True,
+        depth_map: NDArray[np.float32] | None = None,
     ) -> ShadowboxMesh:
         """クラスタリング結果からシャドーボックスメッシュを生成。"""
         ...
@@ -159,6 +160,7 @@ class MeshGenerator:
         labels: NDArray[np.int32],
         centroids: NDArray[np.float32],
         include_frame: bool = True,
+        depth_map: NDArray[np.float32] | None = None,
     ) -> ShadowboxMesh:
         """クラスタリング結果から完全なシャドーボックスメッシュを生成。
 
@@ -167,6 +169,7 @@ class MeshGenerator:
             labels: 各ピクセルのレイヤーインデックス。shape (H, W)。
             centroids: ソート済みセントロイド。shape (k,)。
             include_frame: フレームを含めるかどうか。
+            depth_map: 生深度マップ（contourモード時に使用）。shape (H, W)。
 
         Returns:
             ShadowboxMeshオブジェクト。
@@ -225,32 +228,52 @@ class MeshGenerator:
                 if len(frame_layer.vertices) > 0:
                     layers.append(frame_layer)
 
+        # contourモード用: depth_threshold の計算関数
+        use_contour = (
+            self._settings.layer_mask_mode == "contour"
+            and depth_map is not None
+        )
+
+        def _depth_threshold_for_base_z(base_z: float) -> float | None:
+            if not use_contour:
+                return None
+            return -base_z / frame_depth  # [0, 1] にマッピング
+
         # 各レイヤーを生成（イラストレイヤーは飛び出しオフセット適用、フレーム除外）
         for i in range(num_layers):
-            z = layer_z_positions[i] + pop_out_offset  # 飛び出し
+            base_z = layer_z_positions[i]
+            z = base_z + pop_out_offset  # 飛び出し
 
             layer_mesh = self._create_layer_mesh(
                 image, labels, z, i,
                 cumulative=self._settings.cumulative_layers,
+                depth_map=depth_map,
+                depth_threshold=_depth_threshold_for_base_z(base_z),
             )
             layers.append(layer_mesh)
 
             # レイヤー補間（すべてのレイヤーで次のレイヤーまで補間）
             if interp_count > 0:
                 z_start = z
+                base_z_start = base_z
                 if i + 1 < num_layers:
                     next_z = layer_z_positions[i + 1] + pop_out_offset
+                    base_z_end = layer_z_positions[i + 1]
                 else:
                     next_z = back_z + pop_out_offset
+                    base_z_end = back_z
                 z_end = next_z
 
                 # N個の補間レイヤーを追加
                 for j in range(1, interp_count + 1):
                     t = j / (interp_count + 1)
                     interp_z = z_start + (z_end - z_start) * t
+                    base_interp = base_z_start + (base_z_end - base_z_start) * t
                     interp_layer = self._create_layer_mesh(
                         image, labels, interp_z, i,
                         cumulative=self._settings.cumulative_layers,
+                        depth_map=depth_map,
+                        depth_threshold=_depth_threshold_for_base_z(base_interp),
                     )
                     layers.append(interp_layer)
 
@@ -476,6 +499,8 @@ class MeshGenerator:
         z: float,
         layer_index: int,
         cumulative: bool = True,
+        depth_map: NDArray[np.float32] | None = None,
+        depth_threshold: float | None = None,
     ) -> LayerMesh:
         """単一レイヤーのメッシュを作成。
 
@@ -489,11 +514,20 @@ class MeshGenerator:
             layer_index: レイヤーインデックス。
             cumulative: 累積レイヤーモード。Trueの場合、このレイヤー以下の
                 すべてのピクセルを含む（奥のレイヤーほど完全な画像に近づく）。
+            depth_map: 生深度マップ（contourモード時に使用）。
+            depth_threshold: 深度閾値（contourモード時に使用）。
 
         Returns:
             LayerMeshオブジェクト。
         """
-        if cumulative:
+        if (
+            self._settings.layer_mask_mode == "contour"
+            and depth_map is not None
+            and depth_threshold is not None
+        ):
+            # 等高線カット: 深度閾値以浅のピクセル & フレーム除外
+            mask = (depth_map <= depth_threshold) & (labels != -1)
+        elif cumulative:
             # 累積マスク: このレイヤー以下のすべてのピクセル
             # フレーム(-1)は常に除外（別途フレームレイヤーとして作成）
             mask = (labels <= layer_index) & (labels >= 0)

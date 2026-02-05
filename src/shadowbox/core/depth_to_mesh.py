@@ -152,6 +152,7 @@ class DepthToMeshProcessor:
                 labels,
                 centroids,
                 include_frame=include_frame,
+                depth_map=depth_map,
             )
 
         return DepthToMeshResult(

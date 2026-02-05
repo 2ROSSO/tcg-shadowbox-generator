@@ -584,6 +584,140 @@ class TestLayerSpacingMode:
         assert mesh.layers[1].z_position == pytest.approx(-expected_spacing * 2, abs=1e-5)
 
 
+class TestContourMode:
+    """等高線カット（contour）モードのテスト。"""
+
+    def _make_generator(self, **kwargs) -> MeshGenerator:
+        defaults = dict(
+            layer_mask_mode="contour",
+            back_panel=False,
+            layer_interpolation=0,
+            cumulative_layers=True,
+            frame_depth=0.5,
+        )
+        defaults.update(kwargs)
+        return MeshGenerator(RenderSettings(**defaults))
+
+    def _make_depth_gradient(self, h: int = 10, w: int = 10) -> np.ndarray:
+        """上が浅く(0)、下が深い(1)のグラデーション深度マップを生成。"""
+        return np.linspace(0, 1, h).reshape(-1, 1).repeat(w, axis=1).astype(
+            np.float32
+        )
+
+    def test_contour_basic(self) -> None:
+        """contourモードで手前レイヤーのピクセル数 < 奥レイヤー。"""
+        generator = self._make_generator()
+
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        labels = np.zeros((10, 10), dtype=np.int32)
+        labels[:5, :] = 0
+        labels[5:, :] = 1
+        centroids = np.array([0.2, 0.8], dtype=np.float32)
+        depth_map = self._make_depth_gradient()
+
+        mesh = generator.generate(
+            image, labels, centroids, include_frame=False, depth_map=depth_map
+        )
+
+        # 手前レイヤー(layer 0)のピクセル数 < 奥レイヤー(layer 1)
+        assert len(mesh.layers[0].vertices) < len(mesh.layers[1].vertices)
+
+    def test_contour_back_layer_has_all_pixels(self) -> None:
+        """最奥レイヤーが全イラストピクセルを含む。"""
+        generator = self._make_generator()
+
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        labels = np.zeros((10, 10), dtype=np.int32)
+        labels[:5, :] = 0
+        labels[5:, :] = 1
+        centroids = np.array([0.2, 0.8], dtype=np.float32)
+        depth_map = self._make_depth_gradient()
+
+        mesh = generator.generate(
+            image, labels, centroids, include_frame=False, depth_map=depth_map
+        )
+
+        # 最奥レイヤー (threshold = -back_z / frame_depth = 1.0)
+        # depth_map <= 1.0 → 全ピクセル
+        total_illustration = np.sum(labels >= 0)
+        assert len(mesh.layers[-1].vertices) == total_illustration
+
+    def test_contour_excludes_frame_pixels(self) -> None:
+        """labels==-1 のフレームピクセルが contour マスクから除外される。"""
+        generator = self._make_generator()
+
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        labels = np.zeros((10, 10), dtype=np.int32)
+        labels[:3, :] = -1  # フレームピクセル
+        labels[3:7, :] = 0
+        labels[7:, :] = 1
+        centroids = np.array([0.2, 0.8], dtype=np.float32)
+        depth_map = np.ones((10, 10), dtype=np.float32) * 0.1  # 全ピクセル浅い
+
+        mesh = generator.generate(
+            image, labels, centroids, include_frame=False, depth_map=depth_map
+        )
+
+        # フレームレイヤー (labels==-1) は先頭に作成される
+        # イラストレイヤーはフレームピクセルを含まない
+        illustration_layers = [
+            l for l in mesh.layers if l.layer_index >= 0
+        ]
+        for layer in illustration_layers:
+            # フレーム行(row 0-2)のピクセルが含まれないことを確認
+            if len(layer.pixel_indices) > 0:
+                assert np.all(layer.pixel_indices[:, 0] >= 3)
+
+    def test_contour_with_interpolation(self) -> None:
+        """補間レイヤーも等高線形状になる。"""
+        generator = self._make_generator(layer_interpolation=1)
+
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        labels = np.zeros((10, 10), dtype=np.int32)
+        labels[:5, :] = 0
+        labels[5:, :] = 1
+        centroids = np.array([0.2, 0.8], dtype=np.float32)
+        depth_map = self._make_depth_gradient()
+
+        mesh = generator.generate(
+            image, labels, centroids, include_frame=False, depth_map=depth_map
+        )
+
+        # 2元レイヤー + 補間レイヤーが存在
+        # layer_interpolation=1 → 各レイヤー後に1補間 + 最終レイヤー後に1補間
+        # total: 2 original + 2 interpolation = 4
+        assert mesh.num_layers == 4
+
+        # 補間レイヤーも contour 形状（ピクセル数がレイヤー0より多い）
+        layer0_count = len(mesh.layers[0].vertices)
+        interp_layer = mesh.layers[1]  # layer 0 の後の補間
+        assert len(interp_layer.vertices) >= layer0_count
+
+    def test_cluster_mode_unchanged(self) -> None:
+        """cluster モードの既存動作が変わらない。"""
+        generator_cluster = MeshGenerator(RenderSettings(
+            layer_mask_mode="cluster",
+            back_panel=False,
+            layer_interpolation=0,
+            cumulative_layers=True,
+        ))
+
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        labels = np.zeros((10, 10), dtype=np.int32)
+        labels[:5, :] = 0
+        labels[5:, :] = 1
+        centroids = np.array([0.2, 0.8], dtype=np.float32)
+        depth_map = self._make_depth_gradient()
+
+        mesh = generator_cluster.generate(
+            image, labels, centroids, include_frame=False, depth_map=depth_map
+        )
+
+        # cluster モードでは cumulative なので両レイヤーが100ピクセル
+        assert len(mesh.layers[0].vertices) == 50  # layer 0 のみ
+        assert len(mesh.layers[1].vertices) == 100  # layer 0 + 1
+
+
 class TestMeshGeneratorProtocol:
     """MeshGeneratorProtocolのテスト。"""
 
