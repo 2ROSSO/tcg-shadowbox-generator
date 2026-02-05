@@ -1,5 +1,7 @@
 # TCG Shadowbox Generator
 
+[日本語版はこちら (Japanese)](README_ja.md)
+
 Transform TCG card illustrations into interactive 3D shadowbox displays using AI-powered depth estimation.
 
 ## Features
@@ -39,43 +41,42 @@ uv sync --extra gui
 uv sync --all-extras
 ```
 
-| オプション | 含まれるパッケージ                 | 用途                                                      |
-| ---------- | ---------------------------------- | --------------------------------------------------------- |
-| `jupyter`  | jupyter, ipykernel, ipympl, plotly | Jupyter Notebook での実行、**手動領域選択**、**3Dビュー** |
-| `gui`      | PyQt6                              | スタンドアロンGUIアプリ                                   |
-| `triposr`  | trimesh, omegaconf, einops         | TripoSRによる3Dメッシュ生成（別途手動インストール必要）   |
-| `all`      | 上記すべて                         | フル機能                                                  |
+| Option    | Packages                           | Purpose                                              |
+| --------- | ---------------------------------- | ---------------------------------------------------- |
+| `jupyter` | jupyter, ipykernel, ipympl, plotly | Jupyter Notebook, **manual region selection**, **3D view** |
+| `gui`     | PyQt6                              | Standalone GUI app                                   |
+| `triposr` | trimesh, omegaconf, einops         | TripoSR 3D mesh generation (manual setup required)   |
+| `all`     | All of the above                   | Full features                                        |
 
-### TripoSR のインストール（オプション）
+### TripoSR Installation (Optional)
 
-TripoSR を使用して単一画像から直接3Dメッシュを生成するには、以下の手順でセットアップが必要です：
+To generate 3D meshes directly from a single image using TripoSR, follow these setup steps:
 
-#### 前提条件（Windows）
+#### Prerequisites (Windows)
 
-- **Visual Studio Build Tools** が必要です（C++拡張のビルドに使用）
-- [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) から「C++ によるデスクトップ開発」をインストール
+- **Visual Studio Build Tools** required (for building C++ extensions)
+- Install "Desktop development with C++" from [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
 
-#### インストール手順
+#### Setup Steps
 
 ```bash
-# 1. 依存関係をインストール
+# 1. Install dependencies
 uv sync --extra triposr
 
-# 2. TripoSR をクローン（プロジェクトルートに配置）
+# 2. Clone TripoSR (place in project root)
 git clone https://github.com/VAST-AI-Research/TripoSR.git
 
-# 3. torchmcubes をビルド・インストール（C++拡張）
+# 3. Build and install torchmcubes (C++ extension)
 uv pip install scikit-build-core cmake ninja pybind11
 
-# Windows の場合、CMAKE_PREFIX_PATH を設定してビルド
+# On Windows, set CMAKE_PREFIX_PATH before building
 set CMAKE_PREFIX_PATH=.venv\Lib\site-packages\torch\share\cmake
 uv pip install git+https://github.com/tatsy/torchmcubes.git --no-build-isolation
 ```
 
-> **Note**: `TripoSR/` ディレクトリはプロジェクトルートに配置すると自動検出されます。
-> PYTHONPATH の手動設定は不要です。
+> **Note**: The `TripoSR/` directory is auto-detected when placed in the project root. No manual PYTHONPATH configuration is needed.
 
-#### 使用方法
+#### Usage
 
 ```python
 from shadowbox import create_pipeline, ShadowboxSettings
@@ -86,16 +87,16 @@ pipeline = create_pipeline(settings)
 result = pipeline.process(image)
 ```
 
-#### 注意事項
+#### Notes
 
-- `rembg`（背景除去）は Python 3.11+ と依存関係が競合するため、オプション化されています
-- 初回実行時にモデル（約1GB）がダウンロードされます
-- GPU（CUDA）推奨ですが、CPUでも動作します（処理速度は遅くなります）
+- `rembg` (background removal) is optional due to dependency conflicts with Python 3.11+
+- The model (~1GB) is downloaded on first run
+- GPU (CUDA) recommended, but CPU is also supported (slower)
 
-> **Note**: Jupyter Notebook で以下の機能を使用するには `jupyter` オプションが必要です:
+> **Note**: The `jupyter` extra is required for these features in Jupyter Notebook:
 >
-> - **手動領域選択**: `ipympl` により `%matplotlib widget` バックエンドでインタラクティブな操作が可能
-> - **3Dビュー**: `plotly` により `render_shadowbox()` がセル内でインタラクティブ3D表示されます
+> - **Manual region selection**: Interactive operation via `ipympl` with `%matplotlib widget` backend
+> - **3D view**: Interactive 3D display in cells via `plotly` with `render_shadowbox()`
 
 ## Quick Start
 
@@ -139,15 +140,16 @@ uv run python -m shadowbox.gui.app
 2. **Select Region**: Auto-detect or manually draw illustration area
 3. **Depth Estimation**: AI model estimates per-pixel depth
 4. **Clustering**: Depth values clustered into discrete layers
-5. **3D Generation**: Layers rendered as stacked 3D surfaces
-6. **Interactive View**: Explore with mouse rotation/zoom
+5. **Mask Mode**: Choose between cluster labels (flat layers) or contour cut (depth-based natural shapes)
+6. **3D Generation**: Layers rendered as stacked 3D surfaces
+7. **Interactive View**: Explore with mouse rotation/zoom
 
 ## Architecture
 
-TCG Shadowbox Generator は2つの3D生成モードをサポートしています：
+TCG Shadowbox Generator supports two 3D generation modes:
 
 ### Depth Mode (default)
-画像から深度マップを推定し、クラスタリングでレイヤーに分割します。
+Estimates a depth map from the image and splits it into layers via clustering.
 
 ```
 Image → Depth Estimation → Clustering → Mesh Generation → 3D View
@@ -156,7 +158,7 @@ Image → Depth Estimation → Clustering → Mesh Generation → 3D View
 ```
 
 ### TripoSR Mode
-単一画像から直接3Dメッシュを生成し、深度復元でレイヤー化します。
+Generates a 3D mesh directly from a single image, then recovers depth for layer splitting.
 
 ```
 Image → TripoSR → 3D Mesh → Depth Recovery → Clustering → Layer Split
@@ -164,9 +166,9 @@ Image → TripoSR → 3D Mesh → Depth Recovery → Clustering → Layer Split
                  trimesh     depth map       k layers
 ```
 
-**共通コンポーネント**: 両モードで `LayerClusterer`（クラスタリング）と Frame/BackPanel（フレーム生成）を共有しています。
+**Shared Components**: Both modes share `LayerClusterer` (clustering) and Frame/BackPanel (frame generation).
 
-詳細なアーキテクチャ分析は `docs/architecture_analysis.md` を参照してください。
+See `docs/architecture_analysis.md` for detailed architecture analysis.
 
 ## Project Structure
 
