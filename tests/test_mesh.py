@@ -438,6 +438,152 @@ class TestNewFeatures:
         assert min_z >= -settings.frame_depth
 
 
+class TestLayerSpacingMode:
+    """layer_spacing_mode のテスト。"""
+
+    def test_even_spacing_default(self) -> None:
+        """デフォルト(even)モードで均等配置されることをテスト。"""
+        settings = RenderSettings(
+            frame_depth=0.5,
+            back_panel=False,
+            layer_interpolation=0,
+            cumulative_layers=False,
+        )
+        generator = MeshGenerator(settings)
+
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        labels = np.zeros((10, 10), dtype=np.int32)
+        labels[:3, :] = 0
+        labels[3:6, :] = 1
+        labels[6:, :] = 2
+
+        centroids = np.array([0.1, 0.5, 1.0], dtype=np.float32)
+
+        mesh = generator.generate(image, labels, centroids, include_frame=False)
+
+        # 均等配置: spacing = 0.5 / 3 ≈ 0.1667
+        expected_spacing = 0.5 / 3
+        assert mesh.layers[0].z_position == pytest.approx(-expected_spacing * 1, abs=1e-5)
+        assert mesh.layers[1].z_position == pytest.approx(-expected_spacing * 2, abs=1e-5)
+        assert mesh.layers[2].z_position == pytest.approx(-expected_spacing * 3, abs=1e-5)
+
+    def test_proportional_spacing(self) -> None:
+        """proportionalモードでcentroidに比例した配置をテスト。"""
+        settings = RenderSettings(
+            frame_depth=0.5,
+            back_panel=False,
+            layer_interpolation=0,
+            cumulative_layers=False,
+            layer_spacing_mode="proportional",
+        )
+        generator = MeshGenerator(settings)
+
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        labels = np.zeros((10, 10), dtype=np.int32)
+        labels[:3, :] = 0
+        labels[3:6, :] = 1
+        labels[6:, :] = 2
+
+        centroids = np.array([0.1, 0.5, 1.0], dtype=np.float32)
+
+        mesh = generator.generate(image, labels, centroids, include_frame=False)
+
+        # proportional: z = -frame_depth * (c / max_c)
+        # max_c = 1.0, frame_depth = 0.5
+        assert mesh.layers[0].z_position == pytest.approx(-0.5 * 0.1, abs=1e-5)
+        assert mesh.layers[1].z_position == pytest.approx(-0.5 * 0.5, abs=1e-5)
+        assert mesh.layers[2].z_position == pytest.approx(-0.5 * 1.0, abs=1e-5)
+
+    def test_proportional_with_close_centroids(self) -> None:
+        """近接centroidでproportional配置が密になることをテスト。"""
+        settings = RenderSettings(
+            frame_depth=0.5,
+            back_panel=False,
+            layer_interpolation=0,
+            cumulative_layers=False,
+            layer_spacing_mode="proportional",
+        )
+        generator = MeshGenerator(settings)
+
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        labels = np.zeros((10, 10), dtype=np.int32)
+        labels[:3, :] = 0
+        labels[3:6, :] = 1
+        labels[6:8, :] = 2
+        labels[8:, :] = 3
+
+        # 手前に密集、奥は離れた centroid
+        centroids = np.array([0.05, 0.10, 0.80, 0.95], dtype=np.float32)
+
+        mesh = generator.generate(image, labels, centroids, include_frame=False)
+
+        # max_c = 0.95
+        z0 = mesh.layers[0].z_position
+        z1 = mesh.layers[1].z_position
+        z2 = mesh.layers[2].z_position
+        z3 = mesh.layers[3].z_position
+
+        # 手前2層の間隔は狭く、後方は広い
+        gap_01 = abs(z1 - z0)
+        gap_12 = abs(z2 - z1)
+        assert gap_01 < gap_12
+
+        # 最奥レイヤーが -frame_depth に最も近い
+        assert z3 == pytest.approx(-0.5, abs=1e-5)
+
+    def test_proportional_with_pop_out(self) -> None:
+        """proportionalモードでpop_outオフセットが正しく適用されるテスト。"""
+        settings = RenderSettings(
+            frame_depth=0.5,
+            back_panel=False,
+            layer_interpolation=0,
+            cumulative_layers=False,
+            layer_spacing_mode="proportional",
+            layer_pop_out=0.5,
+        )
+        generator = MeshGenerator(settings)
+
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        labels = np.zeros((10, 10), dtype=np.int32)
+        labels[:5, :] = 0
+        labels[5:, :] = 1
+
+        centroids = np.array([0.2, 1.0], dtype=np.float32)
+
+        mesh = generator.generate(image, labels, centroids, include_frame=False)
+
+        # pop_out_offset = 0.5 * 0.5 = 0.25
+        # base z0 = -0.5 * (0.2 / 1.0) = -0.1, with pop_out: -0.1 + 0.25 = 0.15
+        # base z1 = -0.5 * (1.0 / 1.0) = -0.5, with pop_out: -0.5 + 0.25 = -0.25
+        assert mesh.layers[0].z_position == pytest.approx(0.15, abs=1e-5)
+        assert mesh.layers[1].z_position == pytest.approx(-0.25, abs=1e-5)
+
+    def test_proportional_zero_centroids_fallback(self) -> None:
+        """centroidが全て0の場合、均等配置にフォールバックするテスト。"""
+        settings = RenderSettings(
+            frame_depth=0.5,
+            back_panel=False,
+            layer_interpolation=0,
+            cumulative_layers=False,
+            layer_spacing_mode="proportional",
+        )
+        generator = MeshGenerator(settings)
+
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        labels = np.zeros((10, 10), dtype=np.int32)
+        labels[:5, :] = 0
+        labels[5:, :] = 1
+
+        centroids = np.array([0.0, 0.0], dtype=np.float32)
+
+        mesh = generator.generate(image, labels, centroids, include_frame=False)
+
+        # フォールバック: 均等配置
+        expected_spacing = 0.5 / 2
+        assert mesh.layers[0].z_position == pytest.approx(-expected_spacing * 1, abs=1e-5)
+        assert mesh.layers[1].z_position == pytest.approx(-expected_spacing * 2, abs=1e-5)
+
+
 class TestMeshGeneratorProtocol:
     """MeshGeneratorProtocolのテスト。"""
 

@@ -180,14 +180,25 @@ class MeshGenerator:
         frame_depth = self._settings.frame_depth
         back_z = -frame_depth
 
-        # レイヤー間隔を自動計算（額縁内に均等配置）
-        layer_spacing = frame_depth / num_layers
-
         # 各レイヤーのZ位置を事前計算
         layer_z_positions = []
-        for i in range(num_layers):
-            z = -layer_spacing * (i + 1)
-            layer_z_positions.append(z)
+        if (
+            self._settings.layer_spacing_mode == "proportional"
+            and len(centroids) > 0
+        ):
+            max_c = centroids.max()
+            if max_c > 0:
+                for c in centroids:
+                    z = -frame_depth * (c / max_c)
+                    layer_z_positions.append(z)
+            else:
+                layer_spacing = frame_depth / num_layers
+                for i in range(num_layers):
+                    layer_z_positions.append(-layer_spacing * (i + 1))
+        else:
+            layer_spacing = frame_depth / num_layers
+            for i in range(num_layers):
+                layer_z_positions.append(-layer_spacing * (i + 1))
 
         # 飛び出しオフセットを計算（フレーム厚みに対する比率）
         pop_out_offset = frame_depth * pop_out if pop_out > 0 else 0

@@ -125,6 +125,7 @@ class RenderSettings:
     back_panel: bool = True
     layer_interpolation: int = 0  # レイヤー間の補間数（0で無効）
     layer_pop_out: float = 0.0  # イラストレイヤーの飛び出し量（0.0-1.0、フレーム厚みに対する比率）
+    layer_spacing_mode: Literal["even", "proportional"] = "even"
 
 
 @dataclass
