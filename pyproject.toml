@@ -76,6 +76,7 @@ packages = ["src/shadowbox"]
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
+    "pytest-qt>=4.2.0",
     "ruff>=0.1.0",
     "mypy>=1.6.0",
 ]
@@ -117,8 +118,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-v --cov=shadowbox --cov-report=term-missing -m 'not slow and not integration'"
+addopts = "-v --cov=shadowbox --cov-report=term-missing -m 'not slow and not integration and not gui'"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests requiring external resources",
+    "gui: marks tests that require a display (PyQt6/pytest-qt)",
 ]

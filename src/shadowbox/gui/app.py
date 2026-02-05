@@ -13,75 +13,28 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import numpy as np
 from PIL import Image
 
 if TYPE_CHECKING:
     from shadowbox.config.template import BoundingBox
 
 try:
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal
-    from PyQt6.QtGui import QAction, QImage, QPixmap
+    from PyQt6.QtGui import QAction
     from PyQt6.QtWidgets import (
         QApplication,
         QFileDialog,
-        QGroupBox,
         QHBoxLayout,
-        QLabel,
         QMainWindow,
         QMessageBox,
         QProgressBar,
-        QPushButton,
-        QSlider,
-        QSpinBox,
         QStatusBar,
         QVBoxLayout,
         QWidget,
     )
+
     PYQT_AVAILABLE = True
 except ImportError:
     PYQT_AVAILABLE = False
-
-
-class ProcessingThread(QThread):
-    """バックグラウンドで画像処理を行うスレッド。"""
-
-    finished = pyqtSignal(object)
-    error = pyqtSignal(str)
-    progress = pyqtSignal(str)
-
-    def __init__(
-        self,
-        image: Image.Image,
-        k: int,
-        use_mock: bool,
-        bbox: BoundingBox | None = None,
-    ):
-        super().__init__()
-        self._image = image
-        self._k = k
-        self._use_mock = use_mock
-        self._bbox = bbox
-
-    def run(self):
-        """処理を実行。"""
-        try:
-            from shadowbox import create_pipeline
-
-            self.progress.emit("パイプラインを作成中...")
-            pipeline = create_pipeline(use_mock_depth=self._use_mock)
-
-            self.progress.emit("深度推定中...")
-            result = pipeline.process(
-                self._image,
-                custom_bbox=self._bbox,
-                k=self._k,
-                include_frame=True,
-            )
-
-            self.finished.emit(result)
-        except Exception as e:
-            self.error.emit(str(e))
 
 
 class ShadowboxApp(QMainWindow):
@@ -97,213 +50,134 @@ class ShadowboxApp(QMainWindow):
         >>> sys.exit(app.exec())
     """
 
-    def __init__(self):
-        """アプリケーションを初期化。"""
+    def __init__(self) -> None:
         super().__init__()
 
         self._image: Image.Image | None = None
         self._result = None
         self._bbox: BoundingBox | None = None
+        self._thread = None
 
         self._init_ui()
 
-    def _init_ui(self):
-        """UIを初期化。"""
+    def _init_ui(self) -> None:
         self.setWindowTitle("TCG Shadowbox Generator")
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(1000, 700)
 
-        # メニューバー
         self._create_menu_bar()
 
-        # メインウィジェット
+        # Central widget
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
-
-        # メインレイアウト
         main_layout = QHBoxLayout(main_widget)
 
-        # 左側: 画像表示
-        left_panel = self._create_image_panel()
-        main_layout.addWidget(left_panel, stretch=2)
+        # Left: Image preview
+        from shadowbox.gui.widgets.image_preview import ImagePreview
 
-        # 右側: コントロールパネル
-        right_panel = self._create_control_panel()
+        self.image_preview = ImagePreview()
+        self.image_preview.region_selected.connect(self._on_region_selected)
+        self.image_preview.region_cleared.connect(self._on_region_cleared)
+        main_layout.addWidget(self.image_preview, stretch=3)
+
+        # Right: Settings + actions
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+
+        from shadowbox.gui.widgets.action_buttons import ActionButtons
+        from shadowbox.gui.widgets.settings_panel import SettingsPanel
+
+        self.settings_panel = SettingsPanel()
+        right_layout.addWidget(self.settings_panel, stretch=1)
+
+        self.action_buttons = ActionButtons()
+        self.action_buttons.generate_clicked.connect(self._process_image)
+        self.action_buttons.view_3d_clicked.connect(self._show_3d_view)
+        self.action_buttons.export_clicked.connect(self._export_mesh)
+        right_layout.addWidget(self.action_buttons)
+
         main_layout.addWidget(right_panel, stretch=1)
 
-        # ステータスバー
+        # Status bar
         self._status_bar = QStatusBar()
         self.setStatusBar(self._status_bar)
         self._status_bar.showMessage("画像を読み込んでください")
 
-        # プログレスバー
         self._progress_bar = QProgressBar()
         self._progress_bar.setVisible(False)
         self._status_bar.addPermanentWidget(self._progress_bar)
 
-    def _create_menu_bar(self):
-        """メニューバーを作成。"""
+    def _create_menu_bar(self) -> None:
         menubar = self.menuBar()
 
-        # ファイルメニュー
         file_menu = menubar.addMenu("ファイル")
-
         open_action = QAction("画像を開く...", self)
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self._open_image)
         file_menu.addAction(open_action)
-
         file_menu.addSeparator()
-
         exit_action = QAction("終了", self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-        # ヘルプメニュー
         help_menu = menubar.addMenu("ヘルプ")
-
         about_action = QAction("About", self)
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
 
-    def _create_image_panel(self) -> QWidget:
-        """画像表示パネルを作成。"""
-        panel = QGroupBox("画像プレビュー")
-        layout = QVBoxLayout(panel)
+    # ---- Image loading ----
 
-        self._image_label = QLabel("画像が読み込まれていません")
-        self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._image_label.setMinimumSize(400, 400)
-        self._image_label.setStyleSheet(
-            "QLabel { background-color: #2a2a2a; color: #888; border: 1px solid #444; }"
-        )
-        layout.addWidget(self._image_label)
-
-        return panel
-
-    def _create_control_panel(self) -> QWidget:
-        """コントロールパネルを作成。"""
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-
-        # 画像読み込みボタン
-        load_group = QGroupBox("画像")
-        load_layout = QVBoxLayout(load_group)
-
-        load_btn = QPushButton("画像を開く...")
-        load_btn.clicked.connect(self._open_image)
-        load_layout.addWidget(load_btn)
-
-        layout.addWidget(load_group)
-
-        # パラメータ設定
-        param_group = QGroupBox("パラメータ")
-        param_layout = QVBoxLayout(param_group)
-
-        # レイヤー数
-        layer_layout = QHBoxLayout()
-        layer_layout.addWidget(QLabel("レイヤー数:"))
-        self._layer_spin = QSpinBox()
-        self._layer_spin.setRange(2, 10)
-        self._layer_spin.setValue(5)
-        layer_layout.addWidget(self._layer_spin)
-        param_layout.addLayout(layer_layout)
-
-        # ポイントサイズ
-        point_layout = QHBoxLayout()
-        point_layout.addWidget(QLabel("ポイントサイズ:"))
-        self._point_slider = QSlider(Qt.Orientation.Horizontal)
-        self._point_slider.setRange(1, 10)
-        self._point_slider.setValue(4)
-        self._point_label = QLabel("4")
-        self._point_slider.valueChanged.connect(
-            lambda v: self._point_label.setText(str(v))
-        )
-        point_layout.addWidget(self._point_slider)
-        point_layout.addWidget(self._point_label)
-        param_layout.addLayout(point_layout)
-
-        layout.addWidget(param_group)
-
-        # 処理ボタン
-        process_group = QGroupBox("処理")
-        process_layout = QVBoxLayout(process_group)
-
-        self._process_btn = QPushButton("シャドーボックス生成")
-        self._process_btn.setEnabled(False)
-        self._process_btn.clicked.connect(self._process_image)
-        process_layout.addWidget(self._process_btn)
-
-        self._view_btn = QPushButton("3Dビューを開く")
-        self._view_btn.setEnabled(False)
-        self._view_btn.clicked.connect(self._show_3d_view)
-        process_layout.addWidget(self._view_btn)
-
-        layout.addWidget(process_group)
-
-        # スペーサー
-        layout.addStretch()
-
-        return panel
-
-    def _open_image(self):
-        """画像ファイルを開く。"""
+    def _open_image(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "画像を開く",
             "",
             "画像ファイル (*.png *.jpg *.jpeg *.gif *.bmp);;すべてのファイル (*.*)",
         )
-
         if file_path:
             try:
                 self._image = Image.open(file_path).convert("RGB")
-                self._display_image(self._image)
-                self._process_btn.setEnabled(True)
+                self.image_preview.set_image(self._image)
+                self.action_buttons.set_has_image(True)
+                self._result = None
+                self.action_buttons.set_has_result(False)
+                self._bbox = None
                 self._status_bar.showMessage(f"読み込み完了: {Path(file_path).name}")
             except Exception as e:
-                QMessageBox.critical(self, "エラー", f"画像の読み込みに失敗しました:\n{e}")
+                QMessageBox.critical(
+                    self, "エラー", f"画像の読み込みに失敗しました:\n{e}"
+                )
 
-    def _display_image(self, image: Image.Image):
-        """画像を表示。"""
-        # PILからQPixmapに変換
-        img_array = np.array(image)
-        height, width, channel = img_array.shape
-        bytes_per_line = 3 * width
+    # ---- Region selection ----
 
-        q_image = QImage(
-            img_array.data,
-            width,
-            height,
-            bytes_per_line,
-            QImage.Format.Format_RGB888,
-        )
-        pixmap = QPixmap.fromImage(q_image)
+    def _on_region_selected(self, x: int, y: int, w: int, h: int) -> None:
+        from shadowbox.config.template import BoundingBox
 
-        # ラベルに合わせてスケール
-        scaled_pixmap = pixmap.scaled(
-            self._image_label.size(),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        self._image_label.setPixmap(scaled_pixmap)
+        self._bbox = BoundingBox(x=x, y=y, width=w, height=h)
+        self._status_bar.showMessage(f"領域選択: ({x}, {y}) {w}x{h}")
 
-    def _process_image(self):
-        """画像を処理してシャドーボックスを生成。"""
+    def _on_region_cleared(self) -> None:
+        self._bbox = None
+        self._status_bar.showMessage("領域選択をクリア")
+
+    # ---- Processing ----
+
+    def _process_image(self) -> None:
         if self._image is None:
             return
 
-        # ボタンを無効化
-        self._process_btn.setEnabled(False)
-        self._view_btn.setEnabled(False)
+        self.action_buttons.generate_btn.setEnabled(False)
+        self.action_buttons.set_has_result(False)
         self._progress_bar.setVisible(True)
-        self._progress_bar.setRange(0, 0)  # インデターミネートモード
+        self._progress_bar.setRange(0, 0)
 
-        # バックグラウンドで処理
+        from shadowbox.gui.processing import ProcessingThread
+
+        gs = self.settings_panel.get_gui_settings()
         self._thread = ProcessingThread(
-            self._image,
-            k=self._layer_spin.value(),
-            use_mock=True,  # デモ用にモックを使用
+            image=self._image,
+            settings=gs,
             bbox=self._bbox,
         )
         self._thread.finished.connect(self._on_processing_finished)
@@ -311,42 +185,87 @@ class ShadowboxApp(QMainWindow):
         self._thread.progress.connect(self._status_bar.showMessage)
         self._thread.start()
 
-    def _on_processing_finished(self, result):
-        """処理完了時のコールバック。"""
+    def _on_processing_finished(self, result) -> None:
         self._result = result
         self._progress_bar.setVisible(False)
-        self._process_btn.setEnabled(True)
-        self._view_btn.setEnabled(True)
+        self.action_buttons.set_has_image(True)
+        self.action_buttons.set_has_result(True)
         self._status_bar.showMessage(
-            f"処理完了: {result.mesh.num_layers}レイヤー, {result.mesh.total_vertices}頂点"
+            f"処理完了: {result.mesh.num_layers}レイヤー, "
+            f"{result.mesh.total_vertices:,}頂点"
         )
 
-    def _on_processing_error(self, error_msg):
-        """処理エラー時のコールバック。"""
+        # Update preview tabs
+        if hasattr(result, "depth_map"):
+            self.image_preview.set_depth_map(result.depth_map)
+        if hasattr(result, "labels") and hasattr(result, "cropped_image"):
+            self.image_preview.set_labels(result.labels, result.cropped_image)
+
+    def _on_processing_error(self, error_msg: str) -> None:
         self._progress_bar.setVisible(False)
-        self._process_btn.setEnabled(True)
+        self.action_buttons.set_has_image(self._image is not None)
         QMessageBox.critical(self, "エラー", f"処理に失敗しました:\n{error_msg}")
         self._status_bar.showMessage("処理エラー")
 
-    def _show_3d_view(self):
-        """3Dビューを表示。"""
+    # ---- 3D View ----
+
+    def _show_3d_view(self) -> None:
         if self._result is None:
             return
-
         try:
-            from shadowbox.visualization import RenderOptions, render_shadowbox
+            from shadowbox.gui.settings_bridge import gui_to_render_options
+            from shadowbox.visualization import render_shadowbox
 
-            options = RenderOptions(
-                point_size=float(self._point_slider.value()),
-                window_size=(1000, 800),
-                title="TCG Shadowbox 3D View",
-            )
+            gs = self.settings_panel.get_gui_settings()
+            options = gui_to_render_options(gs)
             render_shadowbox(self._result.mesh, options)
         except Exception as e:
             QMessageBox.critical(self, "エラー", f"3D表示に失敗しました:\n{e}")
 
-    def _show_about(self):
-        """Aboutダイアログを表示。"""
+    # ---- Export ----
+
+    def _export_mesh(self) -> None:
+        if self._result is None:
+            return
+
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "エクスポート",
+            "shadowbox",
+            "STL (*.stl);;OBJ (*.obj);;PLY (*.ply)",
+        )
+        if not file_path:
+            return
+
+        try:
+            from shadowbox.visualization.export import (
+                export_to_obj,
+                export_to_ply,
+                export_to_stl,
+            )
+
+            if file_path.endswith(".obj") or "OBJ" in selected_filter:
+                if not file_path.endswith(".obj"):
+                    file_path += ".obj"
+                export_to_obj(self._result.mesh, file_path)
+            elif file_path.endswith(".ply") or "PLY" in selected_filter:
+                if not file_path.endswith(".ply"):
+                    file_path += ".ply"
+                export_to_ply(self._result.mesh, file_path)
+            else:
+                if not file_path.endswith(".stl"):
+                    file_path += ".stl"
+                export_to_stl(self._result.mesh, file_path)
+
+            self._status_bar.showMessage(f"エクスポート完了: {file_path}")
+        except Exception as e:
+            QMessageBox.critical(
+                self, "エラー", f"エクスポートに失敗しました:\n{e}"
+            )
+
+    # ---- About ----
+
+    def _show_about(self) -> None:
         QMessageBox.about(
             self,
             "About TCG Shadowbox Generator",
@@ -357,7 +276,7 @@ class ShadowboxApp(QMainWindow):
         )
 
 
-def main():
+def main() -> None:
     """アプリケーションのエントリーポイント。"""
     if not PYQT_AVAILABLE:
         print("エラー: PyQt6がインストールされていません。")
@@ -366,67 +285,9 @@ def main():
 
     app = QApplication(sys.argv)
 
-    # ダークテーマ風のスタイルシート
-    app.setStyleSheet("""
-        QMainWindow {
-            background-color: #1e1e1e;
-        }
-        QGroupBox {
-            color: #ddd;
-            border: 1px solid #444;
-            border-radius: 5px;
-            margin-top: 10px;
-            padding-top: 10px;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left;
-            padding: 0 5px;
-        }
-        QLabel {
-            color: #ddd;
-        }
-        QPushButton {
-            background-color: #3a3a3a;
-            color: #ddd;
-            border: 1px solid #555;
-            border-radius: 3px;
-            padding: 5px 15px;
-        }
-        QPushButton:hover {
-            background-color: #4a4a4a;
-        }
-        QPushButton:pressed {
-            background-color: #2a2a2a;
-        }
-        QPushButton:disabled {
-            background-color: #2a2a2a;
-            color: #666;
-        }
-        QSpinBox, QSlider {
-            background-color: #3a3a3a;
-            color: #ddd;
-            border: 1px solid #555;
-        }
-        QMenuBar {
-            background-color: #2a2a2a;
-            color: #ddd;
-        }
-        QMenuBar::item:selected {
-            background-color: #3a3a3a;
-        }
-        QMenu {
-            background-color: #2a2a2a;
-            color: #ddd;
-        }
-        QMenu::item:selected {
-            background-color: #3a3a3a;
-        }
-        QStatusBar {
-            background-color: #2a2a2a;
-            color: #888;
-        }
-    """)
+    from shadowbox.gui.theme import DARK_STYLESHEET
+
+    app.setStyleSheet(DARK_STYLESHEET)
 
     window = ShadowboxApp()
     window.show()
