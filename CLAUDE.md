@@ -48,10 +48,33 @@ uv run jupyter nbconvert --clear-output --inplace notebooks/*.ipynb
 ### Pipeline Architecture
 
 ```
+src/shadowbox/
+├── __init__.py           # Lazy imports + backward compatibility
+├── factory.py            # create_pipeline() factory
+├── core/                 # Shared components
+│   ├── __init__.py
+│   ├── pipeline.py       # BasePipelineResult
+│   ├── mesh.py           # MeshGenerator, ShadowboxMesh
+│   ├── clustering.py     # KMeansLayerClusterer (shared)
+│   ├── frame_factory.py  # Frame generation (shared)
+│   └── back_panel_factory.py
+├── depth/                # Depth estimation mode
+│   ├── __init__.py
+│   ├── pipeline.py       # DepthPipeline, PipelineResult
+│   └── estimator.py      # DepthEstimatorProtocol, implementations
+└── triposr/              # TripoSR mode
+    ├── __init__.py
+    ├── pipeline.py       # TripoSRPipeline
+    ├── generator.py      # TripoSRGenerator
+    ├── depth_recovery.py # MeshDepthExtractorProtocol
+    └── mesh_splitter.py  # DepthBasedMeshSplitter
+```
+
+```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      create_pipeline()                          │
 │  settings.model_mode で分岐:                                     │
-│    - "depth"   → ShadowboxPipeline (深度推定+クラスタリング)      │
+│    - "depth"   → DepthPipeline (深度推定+クラスタリング)          │
 │    - "triposr" → TripoSRPipeline (直接3Dメッシュ生成)            │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -59,8 +82,8 @@ uv run jupyter nbconvert --clear-output --inplace notebooks/*.ipynb
 ### Dependency Injection Example
 
 ```python
-# ShadowboxPipeline はコンストラクタで全依存を受け取る
-class ShadowboxPipeline:
+# DepthPipeline はコンストラクタで全依存を受け取る
+class DepthPipeline:
     def __init__(
         self,
         depth_estimator: DepthEstimatorProtocol,  # Protocol で型定義
@@ -71,7 +94,7 @@ class ShadowboxPipeline:
         ...
 
 # create_pipeline() が依存関係を組み立てる
-def create_pipeline(settings: ShadowboxSettings) -> ShadowboxPipeline:
+def create_pipeline(settings: ShadowboxSettings) -> DepthPipeline:
     depth_estimator = create_depth_estimator(settings.depth)
     clusterer = KMeansLayerClusterer(settings.clustering)
     ...
@@ -81,10 +104,14 @@ def create_pipeline(settings: ShadowboxSettings) -> ShadowboxPipeline:
 
 | Module | Purpose |
 |--------|---------|
-| `core/depth.py` | Depth estimation using Depth Anything v2 (swappable via Protocol) |
-| `core/clustering.py` | K-Means layer clustering with optimal k detection |
+| `factory.py` | `create_pipeline()` factory function |
+| `core/pipeline.py` | `BasePipelineResult` base class |
+| `core/clustering.py` | K-Means layer clustering with optimal k detection (shared) |
 | `core/mesh.py` | 3D mesh generation from depth layers |
-| `core/pipeline.py` | Main orchestrator, `create_pipeline()` factory |
+| `core/frame_factory.py` | Frame generation (shared) |
+| `core/back_panel_factory.py` | Back panel generation (shared) |
+| `depth/estimator.py` | Depth estimation using Depth Anything v2 (swappable via Protocol) |
+| `depth/pipeline.py` | `DepthPipeline`, `PipelineResult` |
 | `triposr/generator.py` | TripoSR 3D mesh generation (alternative to depth+clustering) |
 | `triposr/pipeline.py` | TripoSR pipeline wrapper |
 | `triposr/depth_recovery.py` | 3Dメッシュから深度マップを復元 (MeshDepthExtractorProtocol) |

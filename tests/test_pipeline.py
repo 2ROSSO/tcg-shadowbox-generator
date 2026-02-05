@@ -1,6 +1,6 @@
 """パイプラインモジュールのテスト。
 
-このモジュールは、ShadowboxPipelineとcreate_pipeline関数の
+このモジュールは、DepthPipelineとcreate_pipeline関数の
 ユニットテストを提供します。
 """
 
@@ -12,12 +12,9 @@ import pytest
 from PIL import Image
 
 from shadowbox.config import BoundingBox, CardTemplate, ShadowboxSettings, YAMLConfigLoader
-from shadowbox.core.pipeline import (
-    BasePipelineResult,
-    PipelineResult,
-    ShadowboxPipeline,
-    create_pipeline,
-)
+from shadowbox.core.pipeline import BasePipelineResult
+from shadowbox.depth.pipeline import DepthPipeline, PipelineResult
+from shadowbox.factory import create_pipeline
 
 
 class TestCreatePipeline:
@@ -27,7 +24,7 @@ class TestCreatePipeline:
         """デフォルト設定でパイプラインを作成するテスト。"""
         pipeline = create_pipeline(use_mock_depth=True)
 
-        assert isinstance(pipeline, ShadowboxPipeline)
+        assert isinstance(pipeline, DepthPipeline)
 
     def test_create_with_custom_settings(self) -> None:
         """カスタム設定でパイプラインを作成するテスト。"""
@@ -37,19 +34,20 @@ class TestCreatePipeline:
 
         pipeline = create_pipeline(settings, use_mock_depth=True)
 
-        assert isinstance(pipeline, ShadowboxPipeline)
+        assert isinstance(pipeline, DepthPipeline)
 
     def test_create_with_mock_depth(self) -> None:
         """モック深度推定器を使用するテスト。"""
         pipeline = create_pipeline(use_mock_depth=True)
 
         # モック推定器が使われていることを確認
-        from shadowbox.core.depth import MockDepthEstimator
+        from shadowbox.depth.estimator import MockDepthEstimator
+
         assert isinstance(pipeline._depth_estimator, MockDepthEstimator)
 
 
-class TestShadowboxPipeline:
-    """ShadowboxPipelineのテスト。"""
+class TestDepthPipeline:
+    """DepthPipelineのテスト。"""
 
     def test_process_basic(self, sample_image: Image.Image) -> None:
         """基本的なパイプライン処理をテスト。"""
@@ -173,11 +171,11 @@ class TestPipelineIntegration:
         for y in range(100):
             for x in range(100):
                 if y < 33:
-                    pixels[x, y] = (255, 0, 0)    # 赤（手前）
+                    pixels[x, y] = (255, 0, 0)  # 赤（手前）
                 elif y < 66:
-                    pixels[x, y] = (0, 255, 0)    # 緑（中間）
+                    pixels[x, y] = (0, 255, 0)  # 緑（中間）
                 else:
-                    pixels[x, y] = (0, 0, 255)    # 青（奥）
+                    pixels[x, y] = (0, 0, 255)  # 青（奥）
 
         settings = ShadowboxSettings()
         settings.render.back_panel = False

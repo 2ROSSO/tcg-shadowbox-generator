@@ -174,16 +174,16 @@ class TestCreatePipelineWithTripoSR:
         assert pipeline.render_settings.frame_depth == 0.75
 
     def test_create_pipeline_default_mode(self) -> None:
-        """デフォルトでShadowboxPipelineが返されるテスト。"""
+        """デフォルトでDepthPipelineが返されるテスト。"""
         from shadowbox import create_pipeline
-        from shadowbox.core.pipeline import ShadowboxPipeline
+        from shadowbox.depth.pipeline import DepthPipeline
 
         settings = ShadowboxSettings()
         # model_modeはデフォルトで"depth"
 
         pipeline = create_pipeline(settings, use_mock_depth=True)
 
-        assert isinstance(pipeline, ShadowboxPipeline)
+        assert isinstance(pipeline, DepthPipeline)
 
 
 class TestTripoSRPipelineFrameGeneration:

@@ -19,33 +19,54 @@ __all__ = [
     "ShadowboxSettings",
     "CardTemplate",
     "BoundingBox",
-    "ShadowboxPipeline",
+    # Depth mode
+    "DepthPipeline",
     "PipelineResult",
     "BasePipelineResult",
+    # Deprecated alias
+    "ShadowboxPipeline",
 ]
 
 
 def __getattr__(name: str):
     """Lazy import for heavy modules."""
     if name == "create_pipeline":
-        from shadowbox.core.pipeline import create_pipeline
+        from shadowbox.factory import create_pipeline
+
         return create_pipeline
     if name == "ShadowboxSettings":
         from shadowbox.config.settings import ShadowboxSettings
+
         return ShadowboxSettings
     if name == "CardTemplate":
         from shadowbox.config.template import CardTemplate
+
         return CardTemplate
     if name == "BoundingBox":
         from shadowbox.config.template import BoundingBox
+
         return BoundingBox
+    if name == "DepthPipeline":
+        from shadowbox.depth.pipeline import DepthPipeline
+
+        return DepthPipeline
     if name == "ShadowboxPipeline":
-        from shadowbox.core.pipeline import ShadowboxPipeline
-        return ShadowboxPipeline
+        import warnings
+
+        warnings.warn(
+            "ShadowboxPipeline is deprecated, use DepthPipeline instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from shadowbox.depth.pipeline import DepthPipeline
+
+        return DepthPipeline
     if name == "PipelineResult":
-        from shadowbox.core.pipeline import PipelineResult
+        from shadowbox.depth.pipeline import PipelineResult
+
         return PipelineResult
     if name == "BasePipelineResult":
         from shadowbox.core.pipeline import BasePipelineResult
+
         return BasePipelineResult
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

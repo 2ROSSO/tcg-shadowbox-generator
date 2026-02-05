@@ -12,7 +12,7 @@ import pytest
 from PIL import Image
 
 from shadowbox.config import DepthEstimationSettings
-from shadowbox.core.depth import (
+from shadowbox.depth.estimator import (
     DepthAnythingEstimator,
     MockDepthEstimator,
     create_depth_estimator,
