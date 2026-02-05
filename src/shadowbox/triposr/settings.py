@@ -28,6 +28,15 @@ class TripoSRSettings:
         remove_background: 入力画像から背景を除去するかどうか。
         foreground_ratio: 前景領域の比率（0.0-1.0）。
             背景除去後、この比率で前景がクロップされる。
+        depth_resolution: 深度マップ復元時の解像度 (height, width)。
+            split_by_depth使用時に適用。
+        depth_fill_holes: 深度マップの穴埋め処理を行うかどうか。
+        depth_fill_method: 穴埋めの方法。
+            - "interpolate": OpenCV inpaintingによる補間
+            - "max_depth": 最大深度値で埋める
+        face_assignment_method: メッシュ分割時の面のレイヤー割り当て方法。
+            - "centroid": 面の重心のZ座標で決定
+            - "majority": 頂点の多数決で決定
 
     Example:
         >>> # デフォルト設定
@@ -38,6 +47,9 @@ class TripoSRSettings:
         >>>
         >>> # メモリ節約モード
         >>> settings = TripoSRSettings(chunk_size=4096, mc_resolution=128)
+        >>>
+        >>> # 深度ベース分割を高解像度で実行
+        >>> settings = TripoSRSettings(depth_resolution=(1024, 1024))
     """
 
     model_id: str = "stabilityai/TripoSR"
@@ -46,3 +58,11 @@ class TripoSRSettings:
     mc_resolution: int = 256
     remove_background: bool = True
     foreground_ratio: float = 0.85
+
+    # 深度復元設定（split_by_depth使用時）
+    depth_resolution: tuple[int, int] = (512, 512)
+    depth_fill_holes: bool = True
+    depth_fill_method: Literal["interpolate", "max_depth"] = "interpolate"
+
+    # メッシュ分割設定
+    face_assignment_method: Literal["centroid", "majority"] = "centroid"

@@ -10,12 +10,48 @@ Note:
 
 from typing import TYPE_CHECKING, Optional
 
+from shadowbox.triposr.depth_recovery import (
+    DepthRecoverySettings,
+    MeshDepthExtractorProtocol,
+    PyRenderDepthExtractor,
+    TrimeshRayCastingExtractor,
+    create_depth_extractor,
+    fill_depth_holes,
+)
+from shadowbox.triposr.mesh_splitter import (
+    DepthBasedMeshSplitter,
+    MeshSplitResult,
+    assign_face_labels_centroid,
+    assign_face_labels_majority,
+    compute_vertex_pixel_mapping,
+    create_split_shadowbox_mesh,
+)
 from shadowbox.triposr.settings import TripoSRSettings
 
 if TYPE_CHECKING:
     from shadowbox.config.settings import RenderSettings
 
-__all__ = ["TripoSRSettings", "create_triposr_generator", "create_triposr_pipeline"]
+__all__ = [
+    # Settings
+    "TripoSRSettings",
+    "DepthRecoverySettings",
+    # Factory functions
+    "create_triposr_generator",
+    "create_triposr_pipeline",
+    "create_depth_extractor",
+    # Depth recovery
+    "MeshDepthExtractorProtocol",
+    "PyRenderDepthExtractor",
+    "TrimeshRayCastingExtractor",
+    "fill_depth_holes",
+    # Mesh splitting
+    "DepthBasedMeshSplitter",
+    "MeshSplitResult",
+    "compute_vertex_pixel_mapping",
+    "assign_face_labels_centroid",
+    "assign_face_labels_majority",
+    "create_split_shadowbox_mesh",
+]
 
 
 def create_triposr_generator(settings: TripoSRSettings):

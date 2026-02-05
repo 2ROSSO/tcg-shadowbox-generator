@@ -440,6 +440,126 @@ class TestTripoSRPipelineResult:
         assert result.bbox is None
 
 
+class TestTripoSRPipelineDepthSplit:
+    """TripoSRPipelineの深度ベース分割機能のテスト。"""
+
+    def test_process_signature_has_split_by_depth(self) -> None:
+        """process()にsplit_by_depthパラメータがあることを確認。"""
+        import inspect
+
+        settings = TripoSRSettings()
+        pipeline = TripoSRPipeline(settings)
+
+        sig = inspect.signature(pipeline.process)
+        assert "split_by_depth" in sig.parameters
+        assert sig.parameters["split_by_depth"].default is False
+
+    def test_process_signature_has_num_layers(self) -> None:
+        """process()にnum_layersパラメータがあることを確認。"""
+        import inspect
+
+        settings = TripoSRSettings()
+        pipeline = TripoSRPipeline(settings)
+
+        sig = inspect.signature(pipeline.process)
+        assert "num_layers" in sig.parameters
+        assert sig.parameters["num_layers"].default is None
+
+    def test_settings_has_depth_resolution(self) -> None:
+        """TripoSRSettingsにdepth_resolutionがあることを確認。"""
+        settings = TripoSRSettings()
+        assert hasattr(settings, "depth_resolution")
+        assert settings.depth_resolution == (512, 512)
+
+    def test_settings_has_depth_fill_holes(self) -> None:
+        """TripoSRSettingsにdepth_fill_holesがあることを確認。"""
+        settings = TripoSRSettings()
+        assert hasattr(settings, "depth_fill_holes")
+        assert settings.depth_fill_holes is True
+
+    def test_settings_has_face_assignment_method(self) -> None:
+        """TripoSRSettingsにface_assignment_methodがあることを確認。"""
+        settings = TripoSRSettings()
+        assert hasattr(settings, "face_assignment_method")
+        assert settings.face_assignment_method == "centroid"
+
+    def test_custom_depth_settings(self) -> None:
+        """深度設定のカスタマイズができることを確認。"""
+        settings = TripoSRSettings(
+            depth_resolution=(256, 256),
+            depth_fill_holes=False,
+            depth_fill_method="max_depth",
+            face_assignment_method="majority",
+        )
+
+        assert settings.depth_resolution == (256, 256)
+        assert settings.depth_fill_holes is False
+        assert settings.depth_fill_method == "max_depth"
+        assert settings.face_assignment_method == "majority"
+
+    def test_split_mesh_by_depth_requires_faces(self) -> None:
+        """_split_mesh_by_depthは面情報がないメッシュをスキップする。"""
+        from shadowbox.core.mesh import LayerMesh
+
+        settings = TripoSRSettings()
+        pipeline = TripoSRPipeline(settings)
+
+        # 面情報のないメッシュを作成
+        layer = LayerMesh(
+            vertices=np.array([[0, 0, 0]], dtype=np.float32),
+            colors=np.array([[255, 0, 0]], dtype=np.uint8),
+            z_position=0.0,
+            layer_index=0,
+            pixel_indices=np.array([[0, 0]], dtype=np.int32),
+            faces=None,  # 面情報なし
+        )
+        mesh = ShadowboxMesh(
+            layers=[layer],
+            frame=None,
+            bounds=(-1, 1, -1, 1, -1, 1),
+        )
+
+        # 分割を試みる（スキップされるはず）
+        result = pipeline._split_mesh_by_depth(mesh, num_layers=3)
+
+        # 元のメッシュがそのまま返される
+        assert result.num_layers == 1
+
+    def test_split_mesh_by_depth_skips_multi_layer(self) -> None:
+        """_split_mesh_by_depthは既に複数レイヤーのメッシュをスキップする。"""
+        from shadowbox.core.mesh import LayerMesh
+
+        settings = TripoSRSettings()
+        pipeline = TripoSRPipeline(settings)
+
+        # 2レイヤーのメッシュを作成
+        layer1 = LayerMesh(
+            vertices=np.array([[0, 0, 0]], dtype=np.float32),
+            colors=np.array([[255, 0, 0]], dtype=np.uint8),
+            z_position=0.0,
+            layer_index=0,
+            pixel_indices=np.array([[0, 0]], dtype=np.int32),
+        )
+        layer2 = LayerMesh(
+            vertices=np.array([[1, 1, 1]], dtype=np.float32),
+            colors=np.array([[0, 255, 0]], dtype=np.uint8),
+            z_position=1.0,
+            layer_index=1,
+            pixel_indices=np.array([[0, 0]], dtype=np.int32),
+        )
+        mesh = ShadowboxMesh(
+            layers=[layer1, layer2],
+            frame=None,
+            bounds=(-1, 1, -1, 1, -1, 1),
+        )
+
+        # 分割を試みる（スキップされるはず）
+        result = pipeline._split_mesh_by_depth(mesh, num_layers=3)
+
+        # 元のメッシュがそのまま返される
+        assert result.num_layers == 2
+
+
 @pytest.mark.slow
 @pytest.mark.integration
 class TestTripoSRIntegration:
