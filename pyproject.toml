@@ -49,7 +49,9 @@ triposr = [
     "trimesh>=4.0.0",     # Mesh processing
     "omegaconf>=2.3.0",   # Configuration
     "einops>=0.7.0",      # Tensor operations
+    "pyrender>=0.1.45",   # Offscreen rendering for depth extraction
     # Note: rembg is optional for background removal but has Python version conflicts
+    # Note: pyrender requires OpenGL. Falls back to trimesh ray casting if unavailable.
 ]
 all = [
     "shadowbox-generator[jupyter,gui,triposr]",

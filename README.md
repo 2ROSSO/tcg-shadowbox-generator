@@ -141,6 +141,32 @@ uv run python -m shadowbox.gui.app
 5. **3D Generation**: Layers rendered as stacked 3D surfaces
 6. **Interactive View**: Explore with mouse rotation/zoom
 
+## Architecture
+
+TCG Shadowbox Generator は2つの3D生成モードをサポートしています：
+
+### Depth Mode (default)
+画像から深度マップを推定し、クラスタリングでレイヤーに分割します。
+
+```
+Image → Depth Estimation → Clustering → Mesh Generation → 3D View
+              ↓                ↓              ↓
+          depth map       k layers      ShadowboxMesh
+```
+
+### TripoSR Mode
+単一画像から直接3Dメッシュを生成し、深度復元でレイヤー化します。
+
+```
+Image → TripoSR → 3D Mesh → Depth Recovery → Clustering → Layer Split
+                     ↓            ↓              ↓
+                 trimesh     depth map       k layers
+```
+
+**共通コンポーネント**: 両モードで `LayerClusterer`（クラスタリング）と Frame/BackPanel（フレーム生成）を共有しています。
+
+詳細なアーキテクチャ分析は `docs/architecture_analysis.md` を参照してください。
+
 ## Project Structure
 
 ```text
@@ -148,11 +174,13 @@ shadowbox-generator/
 ├── src/shadowbox/
 │   ├── core/           # Pipeline, depth, clustering, mesh
 │   ├── config/         # Settings and templates
+│   ├── triposr/        # TripoSR integration (generator, depth recovery, mesh splitter)
 │   ├── visualization/  # 2D/3D rendering
 │   ├── detection/      # Auto region detection
 │   └── gui/            # GUI components
 ├── notebooks/          # Jupyter notebooks
 ├── data/templates/     # Card templates (YAML)
+├── docs/               # Architecture documentation
 └── tests/              # Test suite
 ```
 

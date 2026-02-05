@@ -84,3 +84,6 @@ logs/
 
 # External dependencies (cloned repos)
 /TripoSR/
+.references/shadowbox_3d_detail_spec.txt
+.references/shadowbox_3d_summary.txt
+docs/architecture_analysis.md
