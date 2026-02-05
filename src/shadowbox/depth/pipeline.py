@@ -13,6 +13,7 @@ from PIL import Image
 from shadowbox.config.loader import ConfigLoaderProtocol
 from shadowbox.config.template import BoundingBox
 from shadowbox.core.clustering import LayerClustererProtocol
+from shadowbox.core.depth_to_mesh import DepthToMeshInput, DepthToMeshProcessor
 from shadowbox.core.mesh import MeshGeneratorProtocol
 from shadowbox.core.pipeline import BasePipelineResult
 from shadowbox.depth.estimator import DepthEstimatorProtocol
@@ -60,22 +61,32 @@ class DepthPipeline:
     def __init__(
         self,
         depth_estimator: DepthEstimatorProtocol,
-        clusterer: LayerClustererProtocol,
-        mesh_generator: MeshGeneratorProtocol,
-        config_loader: ConfigLoaderProtocol,
+        clusterer: LayerClustererProtocol | None = None,
+        mesh_generator: MeshGeneratorProtocol | None = None,
+        config_loader: ConfigLoaderProtocol | None = None,
+        *,
+        depth_to_mesh: DepthToMeshProcessor | None = None,
     ) -> None:
         """パイプラインを初期化。
 
         Args:
             depth_estimator: 深度推定器インスタンス。
-            clusterer: クラスタラーインスタンス。
-            mesh_generator: メッシュジェネレーターインスタンス。
+            clusterer: クラスタラーインスタンス（後方互換。depth_to_mesh優先）。
+            mesh_generator: メッシュジェネレーターインスタンス（後方互換。depth_to_mesh優先）。
             config_loader: 設定ローダーインスタンス。
+            depth_to_mesh: 深度→メッシュ共通処理器。指定時はclusterer/mesh_generatorより優先。
         """
         self._depth_estimator = depth_estimator
-        self._clusterer = clusterer
-        self._mesh_generator = mesh_generator
         self._config_loader = config_loader
+
+        if depth_to_mesh is not None:
+            self._depth_to_mesh = depth_to_mesh
+        elif clusterer is not None and mesh_generator is not None:
+            self._depth_to_mesh = DepthToMeshProcessor(clusterer, mesh_generator)
+        else:
+            raise ValueError(
+                "depth_to_mesh または clusterer+mesh_generator の組を指定してください"
+            )
 
     def process(
         self,
@@ -194,56 +205,30 @@ class DepthPipeline:
             cropped_array = image_to_array(cropped_pil)
             depth_map = self._depth_estimator.estimate(cropped_pil)
 
-        # 5. 生深度モード or クラスタリングモード
-        if use_raw_depth:
-            # 生深度モード: クラスタリングをスキップ
-            labels = np.zeros_like(depth_map, dtype=np.int32)  # ダミー
-            centroids = np.array([0.5], dtype=np.float32)  # ダミー
-            optimal_k = 1
-
-            # 生深度メッシュを生成
-            mesh = self._mesh_generator.generate_raw_depth(
-                cropped_array,
-                depth_map,
-                include_frame=include_frame,
-                depth_scale=depth_scale,
-            )
-        else:
-            # クラスタリングモード（従来）
-            if k is None:
-                optimal_k = self._clusterer.find_optimal_k(depth_map)
-            else:
-                optimal_k = k
-
-            # 6. クラスタリング
-            labels, centroids = self._clusterer.cluster(depth_map, optimal_k)
-
-            # 7. カードフレーム統合時: フレーム領域を特別ラベルでマーク
-            if include_card_frame and bbox is not None:
-                # フレームマスクを作成（イラスト領域外）
-                frame_mask = np.ones_like(labels, dtype=bool)
-                frame_mask[bbox.y : bbox.y + bbox.height, bbox.x : bbox.x + bbox.width] = (
-                    False
-                )
-                # フレームピクセルを -1 でマーク（累積計算から除外するため）
-                labels[frame_mask] = -1
-
-            # 8. メッシュ生成
-            mesh = self._mesh_generator.generate(
-                cropped_array,
-                labels,
-                centroids,
-                include_frame=include_frame,
-            )
+        # 5. 共通処理器でメッシュ生成
+        input_data = DepthToMeshInput(
+            cropped_image=cropped_array,
+            depth_map=depth_map,
+            original_image=original_array if include_card_frame else None,
+            bbox=bbox if include_card_frame else None,
+        )
+        mesh_result = self._depth_to_mesh.process(
+            input_data,
+            k=k,
+            include_frame=include_frame,
+            include_card_frame=include_card_frame,
+            use_raw_depth=use_raw_depth,
+            depth_scale=depth_scale,
+        )
 
         return PipelineResult(
             original_image=original_array,
             cropped_image=cropped_array,
             depth_map=depth_map,
-            labels=labels,
-            centroids=centroids,
-            mesh=mesh,
-            optimal_k=optimal_k,
+            labels=mesh_result.labels,
+            centroids=mesh_result.centroids,
+            mesh=mesh_result.mesh,
+            optimal_k=mesh_result.optimal_k,
             bbox=bbox,
         )
 

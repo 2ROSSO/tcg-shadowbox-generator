@@ -439,6 +439,126 @@ class TestTripoSRPipelineResult:
 
         assert result.bbox is None
 
+    def test_result_with_depth_fields(self) -> None:
+        """共通パスで追加されるフィールドのテスト。"""
+        original = np.zeros((100, 100, 3), dtype=np.uint8)
+        mesh = MagicMock(spec=ShadowboxMesh)
+        cropped = np.zeros((50, 50, 3), dtype=np.uint8)
+        depth = np.zeros((50, 50), dtype=np.float32)
+        labels = np.zeros((50, 50), dtype=np.int32)
+        centroids = np.array([0.2, 0.5, 0.8], dtype=np.float32)
+
+        result = TripoSRPipelineResult(
+            original_image=original,
+            mesh=mesh,
+            bbox=None,
+            cropped_image=cropped,
+            depth_map=depth,
+            labels=labels,
+            centroids=centroids,
+            optimal_k=3,
+        )
+
+        assert result.cropped_image is not None
+        assert result.depth_map is not None
+        assert result.labels is not None
+        assert result.centroids is not None
+        assert result.optimal_k == 3
+
+    def test_result_optional_fields_default_none(self) -> None:
+        """オプションフィールドがデフォルトでNoneであること。"""
+        original = np.zeros((10, 10, 3), dtype=np.uint8)
+        mesh = MagicMock(spec=ShadowboxMesh)
+
+        result = TripoSRPipelineResult(
+            original_image=original,
+            mesh=mesh,
+            bbox=None,
+        )
+
+        assert result.cropped_image is None
+        assert result.depth_map is None
+        assert result.labels is None
+        assert result.centroids is None
+        assert result.optimal_k is None
+
+
+class TestTripoSRPipelineSharedPath:
+    """TripoSRPipelineの共通パス（DepthToMeshProcessor経由）のテスト。"""
+
+    def test_init_with_depth_to_mesh(self) -> None:
+        """DepthToMeshProcessorを渡して初期化できること。"""
+        from shadowbox.config.settings import ClusteringSettings
+        from shadowbox.core.clustering import KMeansLayerClusterer
+        from shadowbox.core.depth_to_mesh import DepthToMeshProcessor
+        from shadowbox.core.mesh import MeshGenerator
+
+        settings = TripoSRSettings()
+        render_settings = RenderSettings()
+        clusterer = KMeansLayerClusterer(ClusteringSettings())
+        mesh_generator = MeshGenerator(render_settings)
+        depth_to_mesh = DepthToMeshProcessor(clusterer, mesh_generator)
+
+        pipeline = TripoSRPipeline(settings, render_settings, depth_to_mesh)
+
+        assert pipeline._depth_to_mesh is depth_to_mesh
+
+    def test_init_without_depth_to_mesh(self) -> None:
+        """DepthToMeshProcessorなしで初期化した場合はNone。"""
+        settings = TripoSRSettings()
+        pipeline = TripoSRPipeline(settings)
+
+        assert pipeline._depth_to_mesh is None
+
+    def test_process_signature_has_shared_path_params(self) -> None:
+        """process()に共通パス用パラメータがあることを確認。"""
+        import inspect
+
+        settings = TripoSRSettings()
+        pipeline = TripoSRPipeline(settings)
+
+        sig = inspect.signature(pipeline.process)
+        assert "k" in sig.parameters
+        assert sig.parameters["k"].default is None
+        assert "use_raw_depth" in sig.parameters
+        assert sig.parameters["use_raw_depth"].default is False
+        assert "depth_scale" in sig.parameters
+        assert sig.parameters["depth_scale"].default == 1.0
+        assert "max_resolution" in sig.parameters
+        assert sig.parameters["max_resolution"].default is None
+        assert "include_card_frame" in sig.parameters
+        assert sig.parameters["include_card_frame"].default is False
+
+    def test_create_pipeline_triposr_has_depth_to_mesh(self) -> None:
+        """create_pipeline(triposr)でdepth_to_meshが設定されること。"""
+        from shadowbox import create_pipeline
+
+        settings = ShadowboxSettings()
+        settings.model_mode = "triposr"
+
+        pipeline = create_pipeline(settings)
+
+        assert isinstance(pipeline, TripoSRPipeline)
+        assert pipeline._depth_to_mesh is not None
+
+    def test_factory_with_depth_to_mesh(self) -> None:
+        """create_triposr_pipelineでdepth_to_meshを渡せること。"""
+        from shadowbox.config.settings import ClusteringSettings
+        from shadowbox.core.clustering import KMeansLayerClusterer
+        from shadowbox.core.depth_to_mesh import DepthToMeshProcessor
+        from shadowbox.core.mesh import MeshGenerator
+
+        settings = TripoSRSettings()
+        render_settings = RenderSettings()
+        clusterer = KMeansLayerClusterer(ClusteringSettings())
+        mesh_generator = MeshGenerator(render_settings)
+        depth_to_mesh = DepthToMeshProcessor(clusterer, mesh_generator)
+
+        pipeline = create_triposr_pipeline(settings, render_settings, depth_to_mesh)
+
+        assert isinstance(pipeline, TripoSRPipeline)
+        assert pipeline._depth_to_mesh is depth_to_mesh
+
 
 class TestTripoSRPipelineDepthSplit:
     """TripoSRPipelineの深度ベース分割機能のテスト。"""

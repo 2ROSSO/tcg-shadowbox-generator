@@ -38,16 +38,25 @@ def create_pipeline(
     if settings is None:
         settings = ShadowboxSettings()
 
+    # 共通コンポーネントを作成
+    from shadowbox.core.clustering import KMeansLayerClusterer
+    from shadowbox.core.depth_to_mesh import DepthToMeshProcessor
+    from shadowbox.core.mesh import MeshGenerator
+
+    clusterer = KMeansLayerClusterer(settings.clustering)
+    mesh_generator = MeshGenerator(settings.render)
+    depth_to_mesh = DepthToMeshProcessor(clusterer, mesh_generator)
+
     # TripoSRモードの場合
     if settings.model_mode == "triposr":
         from shadowbox.triposr import create_triposr_pipeline
 
-        return create_triposr_pipeline(settings.triposr, settings.render)
+        return create_triposr_pipeline(
+            settings.triposr, settings.render, depth_to_mesh
+        )
 
     # 深度推定モード（デフォルト）
     from shadowbox.config.loader import YAMLConfigLoader
-    from shadowbox.core.clustering import KMeansLayerClusterer
-    from shadowbox.core.mesh import MeshGenerator
     from shadowbox.depth.estimator import (
         DepthEstimatorProtocol,
         MockDepthEstimator,
@@ -61,18 +70,11 @@ def create_pipeline(
     else:
         depth_estimator = create_depth_estimator(settings.depth)
 
-    # クラスタラーを作成
-    clusterer = KMeansLayerClusterer(settings.clustering)
-
-    # メッシュジェネレーターを作成
-    mesh_generator = MeshGenerator(settings.render)
-
     # 設定ローダーを作成
     config_loader = YAMLConfigLoader(settings.templates_dir)
 
     return DepthPipeline(
         depth_estimator=depth_estimator,
-        clusterer=clusterer,
-        mesh_generator=mesh_generator,
         config_loader=config_loader,
+        depth_to_mesh=depth_to_mesh,
     )

@@ -10,6 +10,7 @@ Note:
 
 from typing import TYPE_CHECKING, Optional
 
+from shadowbox.core.depth_to_mesh import DepthToMeshProcessor
 from shadowbox.triposr.depth_recovery import (
     DepthRecoverySettings,
     MeshDepthExtractorProtocol,
@@ -73,12 +74,14 @@ def create_triposr_generator(settings: TripoSRSettings):
 def create_triposr_pipeline(
     settings: TripoSRSettings,
     render_settings: Optional["RenderSettings"] = None,
+    depth_to_mesh: DepthToMeshProcessor | None = None,
 ):
     """TripoSRパイプラインを作成。
 
     Args:
         settings: TripoSR設定。
         render_settings: レンダリング設定（フレーム生成に使用）。
+        depth_to_mesh: 深度→メッシュ共通処理器（共通パス使用時）。
 
     Returns:
         TripoSRPipeline: 設定済みのパイプライン。
@@ -87,4 +90,4 @@ def create_triposr_pipeline(
         ImportError: TripoSR依存関係がインストールされていない場合。
     """
     from shadowbox.triposr.pipeline import TripoSRPipeline
-    return TripoSRPipeline(settings, render_settings)
+    return TripoSRPipeline(settings, render_settings, depth_to_mesh)

@@ -4,6 +4,11 @@
 """
 
 from shadowbox.core.back_panel_factory import create_back_panel
+from shadowbox.core.depth_to_mesh import (
+    DepthToMeshInput,
+    DepthToMeshProcessor,
+    DepthToMeshResult,
+)
 from shadowbox.core.frame_factory import (
     FrameConfig,
     calculate_bounds,
@@ -17,6 +22,10 @@ from shadowbox.core.pipeline import BasePipelineResult
 __all__ = [
     # Pipeline base
     "BasePipelineResult",
+    # Depth to mesh
+    "DepthToMeshInput",
+    "DepthToMeshProcessor",
+    "DepthToMeshResult",
     # Frame
     "FrameConfig",
     "calculate_bounds",
