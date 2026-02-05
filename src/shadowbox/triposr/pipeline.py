@@ -136,8 +136,12 @@ class TripoSRPipeline:
             cropped_image = pil_image
 
         # ダウンサンプリング（max_resolution指定時）
+        # original / bbox も同一スケールで縮小（カードフレーム使用時の頂点数爆発を防ぐ）
         if max_resolution is not None:
-            cropped_image = self._downsample_if_needed(cropped_image, max_resolution)
+            cropped_image, pil_image, bbox = self._downsample_all_if_needed(
+                cropped_image, pil_image, bbox, max_resolution
+            )
+            original_array = image_to_array(pil_image)
 
         # TripoSRで3Dメッシュを生成
         print("TripoSRで3Dメッシュを生成中...")
@@ -366,6 +370,57 @@ class TripoSRPipeline:
         new_w = int(w * scale)
         new_h = int(h * scale)
         return image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+    def _downsample_all_if_needed(
+        self,
+        cropped_pil: Image.Image,
+        original_pil: Image.Image,
+        bbox: BoundingBox | None,
+        max_resolution: int,
+    ) -> tuple[Image.Image, Image.Image, BoundingBox | None]:
+        """クロップ画像・元画像・bboxを同一スケールでダウンサンプリング。
+
+        DepthPipeline._downsample_if_needed と同等のロジック。
+        include_card_frame 使用時に元画像がフル解像度のまま残ることで
+        頂点数が爆発するのを防ぐ。
+
+        Args:
+            cropped_pil: クロップ済み画像。
+            original_pil: 元画像。
+            bbox: バウンディングボックス。
+            max_resolution: 最大解像度。
+
+        Returns:
+            (ダウンサンプリング済みcropped, original, 調整済みbbox)のタプル。
+        """
+        w, h = cropped_pil.size
+        if max(w, h) <= max_resolution:
+            return cropped_pil, original_pil, bbox
+
+        scale = max_resolution / max(w, h)
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+
+        cropped_pil = cropped_pil.resize(
+            (new_w, new_h), Image.Resampling.LANCZOS
+        )
+
+        orig_w, orig_h = original_pil.size
+        new_orig_w = int(orig_w * scale)
+        new_orig_h = int(orig_h * scale)
+        original_pil = original_pil.resize(
+            (new_orig_w, new_orig_h), Image.Resampling.LANCZOS
+        )
+
+        if bbox is not None:
+            bbox = BoundingBox(
+                x=int(bbox.x * scale),
+                y=int(bbox.y * scale),
+                width=new_w,
+                height=new_h,
+            )
+
+        return cropped_pil, original_pil, bbox
 
     def _split_mesh_by_depth(
         self,
