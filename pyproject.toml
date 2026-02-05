@@ -47,6 +47,7 @@ triposr = [
     #   git clone https://github.com/VAST-AI-Research/TripoSR.git
     #   pip install -r TripoSR/requirements.txt
     "trimesh>=4.0.0",     # Mesh processing
+    "rtree>=1.0.0",       # R-tree for trimesh ray casting fallback
     "omegaconf>=2.3.0",   # Configuration
     "einops>=0.7.0",      # Tensor operations
     "pyrender>=0.1.45",   # Offscreen rendering for depth extraction
