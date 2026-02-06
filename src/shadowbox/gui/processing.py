@@ -52,10 +52,43 @@ class ProcessingThread(QThread):
 
             self.progress.emit("処理中...")
             kwargs = gui_to_process_kwargs(self._settings)
+
+            # auto_detect は ProcessingThread 側で処理するため除去
+            kwargs.pop("auto_detect", None)
+
             if self._bbox is not None:
-                kwargs["custom_bbox"] = self._bbox
+                # ユーザーが手動選択済み → そのまま使用
+                bbox_key = (
+                    "bbox"
+                    if self._settings.model_mode == "triposr"
+                    else "custom_bbox"
+                )
+                kwargs[bbox_key] = self._bbox
+            elif self._settings.detection_method != "none":
+                # RegionDetector で検出
+                self.progress.emit("イラスト領域を検出中...")
+                from shadowbox.detection.region import (
+                    DETECTION_METHODS,
+                    RegionDetector,
+                )
+
+                detector = RegionDetector()
+                method = self._settings.detection_method
+                det_method = (
+                    method if method in DETECTION_METHODS else None
+                )
+                result = detector.detect(self._image, method=det_method)
+                if result.confidence > 0:
+                    bbox_key = (
+                        "bbox"
+                        if self._settings.model_mode == "triposr"
+                        else "custom_bbox"
+                    )
+                    kwargs[bbox_key] = result.bbox
 
             result = pipeline.process(self._image, **kwargs)
             self.finished.emit(result)
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.error.emit(str(e))

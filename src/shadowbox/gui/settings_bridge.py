@@ -6,8 +6,15 @@ GuiSettings（プレーンPython型）をShadowboxSettings / RenderOptions /
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+import logging
+from dataclasses import asdict, dataclass, field, fields
+from pathlib import Path
 from typing import Literal
+
+logger = logging.getLogger(__name__)
+
+_DEFAULTS_PATH = Path.home() / ".shadowbox" / "gui_defaults.json"
 
 
 @dataclass
@@ -21,26 +28,26 @@ class GuiSettings:
     depth_scale: float = 1.0
     num_layers: int | None = None  # None = auto
     max_resolution: int | None = None  # None = unlimited
-    detection_method: Literal["auto", "none"] = "auto"
+    detection_method: str = "auto"
 
     # --- Layers (RenderSettings) ---
     cumulative_layers: bool = True
     back_panel: bool = True
-    layer_interpolation: int = 0
-    layer_pop_out: float = 0.0
-    layer_spacing_mode: Literal["even", "proportional"] = "even"
-    layer_mask_mode: Literal["cluster", "contour"] = "cluster"
-    layer_thickness: float = 0.1
+    layer_interpolation: int = 1
+    layer_pop_out: float = 0.2
+    layer_spacing_mode: Literal["even", "proportional"] = "proportional"
+    layer_mask_mode: Literal["cluster", "contour"] = "contour"
+    layer_thickness: float = 0.2
     layer_gap: float = 0.0
 
     # --- Frame ---
     include_frame: bool = True
-    include_card_frame: bool = False
+    include_card_frame: bool = True
     frame_depth: float = 0.5
     frame_wall_mode: Literal["none", "outer"] = "outer"
 
     # --- Rendering (RenderOptions) ---
-    render_mode: Literal["points", "mesh"] = "points"
+    render_mode: Literal["points", "mesh"] = "mesh"
     point_size: float = 3.0
     mesh_size: float = 0.008
     show_axes: bool = False
@@ -112,6 +119,51 @@ def gui_to_process_kwargs(gs: GuiSettings) -> dict:
         kwargs["k"] = gs.num_layers
     if gs.max_resolution is not None:
         kwargs["max_resolution"] = gs.max_resolution
-    if gs.detection_method == "auto":
-        kwargs["auto_detect"] = True
     return kwargs
+
+
+def save_defaults(gs: GuiSettings) -> None:
+    """GUI設定をJSONファイルに保存。
+
+    Args:
+        gs: 保存するGuiSettings。
+    """
+    data = asdict(gs)
+    # tuple → list (JSON互換)
+    data["background_color"] = list(data["background_color"])
+    _DEFAULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _DEFAULTS_PATH.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def load_defaults() -> GuiSettings | None:
+    """保存済みGUI設定をJSONファイルから読込。
+
+    Returns:
+        GuiSettings。ファイルが無い/破損している場合は None。
+    """
+    if not _DEFAULTS_PATH.exists():
+        return None
+    try:
+        raw = json.loads(_DEFAULTS_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        logger.warning("Failed to load GUI defaults from %s", _DEFAULTS_PATH)
+        return None
+
+    # 未知フィールドをフィルタリング（前方互換性）
+    known = {f.name for f in fields(GuiSettings)}
+    filtered = {k: v for k, v in raw.items() if k in known}
+
+    # background_color: list → tuple
+    if "background_color" in filtered and isinstance(
+        filtered["background_color"], list
+    ):
+        filtered["background_color"] = tuple(filtered["background_color"])
+
+    try:
+        return GuiSettings(**filtered)
+    except TypeError:
+        logger.warning("Failed to construct GuiSettings from %s", _DEFAULTS_PATH)
+        return None

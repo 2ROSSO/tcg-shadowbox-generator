@@ -45,7 +45,9 @@ class ProcessingTab(QWidget):
         row = QHBoxLayout()
         row.addWidget(QLabel("検出方法:"))
         self.detection_method = QComboBox()
-        self.detection_method.addItems(["auto", "none"])
+        from shadowbox.detection.region import DETECTION_METHODS
+
+        self.detection_method.addItems(["auto", "none"] + DETECTION_METHODS)
         row.addWidget(self.detection_method)
         layout.addLayout(row)
 
@@ -122,6 +124,31 @@ class ProcessingTab(QWidget):
 
     def _on_unlimited_res_toggled(self, checked: bool) -> None:
         self.max_resolution.setEnabled(not checked)
+
+    def set_values(self, values: dict) -> None:
+        """辞書から設定値を復元。"""
+        if "model_mode" in values:
+            self.model_mode.setCurrentText(values["model_mode"])
+        if "detection_method" in values:
+            self.detection_method.setCurrentText(values["detection_method"])
+        if "use_mock_depth" in values:
+            self.mock_depth.setChecked(values["use_mock_depth"])
+        if "use_raw_depth" in values:
+            self.raw_depth.setChecked(values["use_raw_depth"])
+        if "depth_scale" in values:
+            self.depth_scale.setValue(values["depth_scale"])
+        if "num_layers" in values:
+            if values["num_layers"] is None:
+                self.num_layers_auto.setChecked(True)
+            else:
+                self.num_layers_auto.setChecked(False)
+                self.num_layers.setValue(values["num_layers"])
+        if "max_resolution" in values:
+            if values["max_resolution"] is None:
+                self.max_res_unlimited.setChecked(True)
+            else:
+                self.max_res_unlimited.setChecked(False)
+                self.max_resolution.setValue(values["max_resolution"])
 
     def get_values(self) -> dict:
         """現在の設定値を辞書で返す。"""

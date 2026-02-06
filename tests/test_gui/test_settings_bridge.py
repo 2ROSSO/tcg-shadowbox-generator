@@ -50,7 +50,7 @@ class TestGuiToRenderOptions:
     def test_default_values(self):
         gs = GuiSettings()
         ro = gui_to_render_options(gs)
-        assert ro.render_mode == "points"
+        assert ro.render_mode == "mesh"
         assert ro.point_size == 3.0
         assert ro.background_color == (30, 30, 30)
         assert ro.show_axes is False
@@ -80,10 +80,10 @@ class TestGuiToProcessKwargs:
         gs = GuiSettings()
         kw = gui_to_process_kwargs(gs)
         assert kw["include_frame"] is True
-        assert kw["include_card_frame"] is False
+        assert kw["include_card_frame"] is True
         assert kw["use_raw_depth"] is False
         assert kw["depth_scale"] == 1.0
-        assert kw.get("auto_detect") is True
+        assert "auto_detect" not in kw
         assert "k" not in kw
         assert "max_resolution" not in kw
 

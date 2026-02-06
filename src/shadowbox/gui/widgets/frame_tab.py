@@ -39,7 +39,7 @@ class FrameTab(QWidget):
 
         # Include Card Frame
         self.include_card_frame = QCheckBox("カードフレームを含める")
-        self.include_card_frame.setChecked(False)
+        self.include_card_frame.setChecked(True)
         layout.addWidget(self.include_card_frame)
 
         # Frame Depth
@@ -74,6 +74,17 @@ class FrameTab(QWidget):
     def _on_frame_toggled(self, checked: bool) -> None:
         self.frame_depth.setEnabled(checked)
         self.frame_wall_mode.setEnabled(checked)
+
+    def set_values(self, values: dict) -> None:
+        """辞書から設定値を復元。"""
+        if "include_frame" in values:
+            self.include_frame.setChecked(values["include_frame"])
+        if "include_card_frame" in values:
+            self.include_card_frame.setChecked(values["include_card_frame"])
+        if "frame_depth" in values:
+            self.frame_depth.setValue(values["frame_depth"])
+        if "frame_wall_mode" in values:
+            self.frame_wall_mode.setCurrentText(values["frame_wall_mode"])
 
     def get_values(self) -> dict:
         """現在の設定値を辞書で返す。"""

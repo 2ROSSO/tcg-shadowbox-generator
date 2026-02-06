@@ -32,6 +32,8 @@ class RenderingTab(QWidget):
         self._bg_color = (30, 30, 30)
         self._init_ui()
         self._connect_signals()
+        # デフォルトを mesh に設定（シグナル接続後に呼び表示切替を発火）
+        self.render_mode.setCurrentText("mesh")
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -143,6 +145,24 @@ class RenderingTab(QWidget):
             f"border: 1px solid #666; min-width: 60px; min-height: 20px;"
         )
         self.bg_color_btn.setText(f"({r},{g},{b})")
+
+    def set_values(self, values: dict) -> None:
+        """辞書から設定値を復元。"""
+        if "render_mode" in values:
+            self.render_mode.setCurrentText(values["render_mode"])
+        if "point_size" in values:
+            self.point_size_slider.setValue(int(values["point_size"]))
+        if "mesh_size" in values:
+            self.mesh_size.setValue(values["mesh_size"])
+        if "show_axes" in values:
+            self.show_axes.setChecked(values["show_axes"])
+        if "show_frame_3d" in values:
+            self.show_frame.setChecked(values["show_frame_3d"])
+        if "layer_opacity" in values:
+            self.opacity_slider.setValue(int(values["layer_opacity"] * 100))
+        if "background_color" in values:
+            self._bg_color = tuple(values["background_color"])
+            self._update_color_button()
 
     def get_values(self) -> dict:
         """現在の設定値を辞書で返す。"""

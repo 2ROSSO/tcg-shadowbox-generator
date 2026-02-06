@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
+
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 
@@ -45,6 +47,14 @@ class SettingsPanel(QWidget):
         self.layers_tab.settings_changed.connect(self.settings_changed)
         self.frame_tab.settings_changed.connect(self.settings_changed)
         self.rendering_tab.settings_changed.connect(self.settings_changed)
+
+    def set_gui_settings(self, gs: GuiSettings) -> None:
+        """GuiSettings の値を全タブに配布。"""
+        values = asdict(gs)
+        self.processing_tab.set_values(values)
+        self.layers_tab.set_values(values)
+        self.frame_tab.set_values(values)
+        self.rendering_tab.set_values(values)
 
     def get_gui_settings(self) -> GuiSettings:
         """全タブから GuiSettings を構築。"""

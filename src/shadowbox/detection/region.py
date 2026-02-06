@@ -13,6 +13,19 @@ from PIL import Image
 
 from shadowbox.config.template import BoundingBox
 
+DETECTION_METHODS: list[str] = [
+    "edge_detection",
+    "hsv_threshold",
+    "contour_detection",
+    "grid_scoring",
+    "boundary_contrast",
+    "frame_analysis",
+    "band_complexity",
+    "horizontal_lines",
+    "center_expansion",
+    "gradient_richness",
+]
+
 
 @dataclass
 class DetectionResult:
@@ -67,14 +80,22 @@ class RegionDetector:
         self._canny_low = canny_low
         self._canny_high = canny_high
 
-    def detect(self, image: Image.Image) -> DetectionResult:
+    def detect(
+        self,
+        image: Image.Image,
+        method: str | None = None,
+    ) -> DetectionResult:
         """イラスト領域を検出。
 
         Args:
             image: 入力画像（PIL Image）。
+            method: 使用する検出メソッド名。Noneの場合はアンサンブル。
 
         Returns:
             検出結果（バウンディングボックスと信頼度）。
+
+        Raises:
+            ValueError: 無効なメソッド名が指定された場合。
 
         Example:
             >>> result = detector.detect(card_image)
@@ -84,6 +105,34 @@ class RegionDetector:
         # PILからOpenCV形式に変換
         cv_image = self._pil_to_cv(image)
         height, width = cv_image.shape[:2]
+
+        # 特定メソッドが指定された場合、そのメソッドだけ実行
+        if method is not None:
+            method_map = {
+                "edge_detection": self._detect_by_edges,
+                "hsv_threshold": self._detect_by_hsv_threshold,
+                "contour_detection": self._detect_by_contours,
+                "grid_scoring": self._detect_by_grid_scoring,
+                "boundary_contrast": self._detect_by_boundary_contrast,
+                "frame_analysis": self._detect_by_frame_analysis,
+                "band_complexity": self._detect_by_band_complexity,
+                "horizontal_lines": self._detect_by_horizontal_lines,
+                "center_expansion": self._detect_by_center_expansion,
+                "gradient_richness": self._detect_by_gradient_richness,
+            }
+            if method not in method_map:
+                raise ValueError(
+                    f"Unknown detection method: {method!r}. "
+                    f"Valid methods: {DETECTION_METHODS}"
+                )
+            result = method_map[method](cv_image)
+            if result is not None:
+                return result
+            # メソッドが結果を返さなかった場合はデフォルト
+            default_bbox = self._create_default_bbox(width, height)
+            return DetectionResult(
+                bbox=default_bbox, confidence=0.0, method="default",
+            )
 
         # 複数の検出手法を試行し、最も良い結果を返す
         results: list[DetectionResult] = []

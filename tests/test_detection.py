@@ -10,6 +10,7 @@ from PIL import Image
 
 from shadowbox.config.template import BoundingBox
 from shadowbox.detection.region import (
+    DETECTION_METHODS,
     DetectionResult,
     RegionDetector,
     detect_illustration_region,
@@ -177,6 +178,36 @@ class TestDetectIllustrationRegion:
             max_area_ratio=0.7,
         )
 
+        assert isinstance(result, DetectionResult)
+
+
+class TestDetectWithMethod:
+    """detect(method=...) のテスト。"""
+
+    def test_specific_method_returns_result(
+        self, sample_card_image: Image.Image,
+    ) -> None:
+        detector = RegionDetector()
+        result = detector.detect(sample_card_image, method="edge_detection")
+        assert isinstance(result, DetectionResult)
+
+    def test_invalid_method_raises_value_error(
+        self, sample_card_image: Image.Image,
+    ) -> None:
+        detector = RegionDetector()
+        with pytest.raises(ValueError, match="Unknown detection method"):
+            detector.detect(sample_card_image, method="nonexistent")
+
+    def test_all_methods_in_constant(self) -> None:
+        assert len(DETECTION_METHODS) == 10
+        assert "edge_detection" in DETECTION_METHODS
+        assert "gradient_richness" in DETECTION_METHODS
+
+    def test_none_method_uses_ensemble(
+        self, sample_card_image: Image.Image,
+    ) -> None:
+        detector = RegionDetector()
+        result = detector.detect(sample_card_image, method=None)
         assert isinstance(result, DetectionResult)
 
 

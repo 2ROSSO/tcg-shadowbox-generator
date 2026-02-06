@@ -13,6 +13,14 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+# Windows: PyQt6より先にtorchをロードしないとDLL検索パスが競合し
+# c10.dll のロードに失敗する (WinError 1114)
+if sys.platform == "win32":
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        pass
+
 from PIL import Image
 
 if TYPE_CHECKING:
@@ -59,6 +67,7 @@ class ShadowboxApp(QMainWindow):
         self._thread = None
 
         self._init_ui()
+        self._restore_defaults()
 
     def _init_ui(self) -> None:
         self.setWindowTitle("TCG Shadowbox Generator")
@@ -274,6 +283,33 @@ class ShadowboxApp(QMainWindow):
             "インタラクティブな3Dシャドーボックスとして表示するツール。\n\n"
             "https://github.com/2ROSSO/shadowbox-generator",
         )
+
+    # ---- Defaults persistence ----
+
+    def _restore_defaults(self) -> None:
+        from shadowbox.gui.settings_bridge import load_defaults
+
+        loaded = load_defaults()
+        if loaded is not None:
+            self.settings_panel.set_gui_settings(loaded)
+        self._initial_settings = self.settings_panel.get_gui_settings()
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        from dataclasses import asdict
+
+        from shadowbox.gui.settings_bridge import save_defaults
+
+        current = self.settings_panel.get_gui_settings()
+        if asdict(current) != asdict(self._initial_settings):
+            reply = QMessageBox.question(
+                self,
+                "設定の保存",
+                "初期値を保存しますか？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                save_defaults(current)
+        super().closeEvent(event)
 
 
 def main() -> None:
