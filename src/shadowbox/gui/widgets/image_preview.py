@@ -1,7 +1,7 @@
 """画像プレビューウィジェット。
 
 元画像・深度マップ・レイヤーラベルをタブで切り替え表示し、
-リージョン選択オーバーレイを重ねます。
+リージョン選択オーバーレイと凡例オーバーレイを重ねます。
 """
 
 from __future__ import annotations
@@ -22,9 +22,17 @@ from PyQt6.QtWidgets import (
 
 from shadowbox.gui.i18n import tr
 from shadowbox.gui.region_selector import RegionSelector
+from shadowbox.gui.widgets.legend_overlay import LegendOverlay
 
 if TYPE_CHECKING:
     from PIL import Image
+
+# Shared color palette for layer visualization and legend
+LAYER_PALETTE = np.array([
+    [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0],
+    [255, 0, 255], [0, 255, 255], [128, 128, 0], [128, 0, 128],
+    [0, 128, 128], [255, 128, 0],
+], dtype=np.uint8)
 
 
 class ImagePreview(QWidget):
@@ -42,6 +50,8 @@ class ImagePreview(QWidget):
         super().__init__(parent)
         self._pixmaps: dict[str, QPixmap] = {}
         self._current_image_size: tuple[int, int] = (0, 0)
+        self._layer_legend_entries: list[tuple[tuple[int, int, int], str]] = []
+        self._depth_legend_entries: list[tuple[tuple[int, int, int], str]] = []
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -91,6 +101,11 @@ class ImagePreview(QWidget):
         self._region_selector.region_cleared.connect(self.region_cleared)
         self._region_selector.setGeometry(self._stack.rect())
 
+        # Legend overlay
+        self._legend = LegendOverlay(self._stack)
+        self._legend.setGeometry(self._stack.rect())
+        self._legend.setVisible(False)
+
         self._current_tab = "original"
         self._update_tab_styles()
 
@@ -99,6 +114,7 @@ class ImagePreview(QWidget):
         self._stack.setCurrentIndex(idx)
         self._current_tab = key
         self._update_tab_styles()
+        self._update_legend()
         # Re-sync region selector when switching to original tab
         if key == "original" and "original" in self._pixmaps:
             self._display_pixmap("original", self._pixmaps["original"])
@@ -115,6 +131,15 @@ class ImagePreview(QWidget):
                     "padding: 4px 12px; border: 1px solid #444; "
                     "border-radius: 3px; color: #999;"
                 )
+
+    def _update_legend(self) -> None:
+        """タブに応じた凡例を表示/非表示。"""
+        if self._current_tab == "layers" and self._layer_legend_entries:
+            self._legend.set_layer_entries(self._layer_legend_entries)
+        elif self._current_tab == "depth" and self._depth_legend_entries:
+            self._legend.set_depth_entries(self._depth_legend_entries)
+        else:
+            self._legend.clear()
 
     def _on_region_toggle(self, checked: bool) -> None:
         self._region_selector.set_active(checked)
@@ -138,7 +163,6 @@ class ImagePreview(QWidget):
         if dmax > dmin:
             normalized = (normalized - dmin) / (dmax - dmin)
         vis = (normalized * 255).astype(np.uint8)
-        # Viridis-like coloring (simple grayscale for now)
         rgb = np.stack([vis, vis, vis], axis=-1)
         h, w = rgb.shape[:2]
         qimg = QImage(rgb.data, w, h, 3 * w, QImage.Format.Format_RGB888)
@@ -146,29 +170,64 @@ class ImagePreview(QWidget):
         self._pixmaps["depth"] = pixmap
         self._display_pixmap("depth", pixmap)
 
-    def set_labels(self, labels: np.ndarray, image: np.ndarray) -> None:
-        """レイヤーラベルをセット（色分け表示）。"""
+        # Build depth legend entries
+        self._depth_legend_entries = [
+            ((255, 255, 255), "Near"),
+            ((128, 128, 128), "Mid"),
+            ((0, 0, 0), "Far"),
+        ]
+
+    def set_labels(
+        self,
+        labels: np.ndarray,
+        image: np.ndarray,
+        centroids: np.ndarray | None = None,
+    ) -> None:
+        """レイヤーラベルをセット（色分け表示）。
+
+        Args:
+            labels: レイヤーラベル配列。
+            image: 元画像（クロップ済み）。
+            centroids: 各クラスタの重心値（近→遠順でソート用）。
+        """
         k = labels.max() + 1
-        # Simple color palette
-        palette = np.array([
-            [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0],
-            [255, 0, 255], [0, 255, 255], [128, 128, 0], [128, 0, 128],
-            [0, 128, 128], [255, 128, 0],
-        ], dtype=np.uint8)
         h, w = labels.shape
         vis = np.zeros((h, w, 3), dtype=np.uint8)
         for i in range(k):
             mask = labels == i
-            color = palette[i % len(palette)]
-            vis[mask] = (image[mask].astype(float) * 0.5 + color * 0.5).astype(np.uint8)
+            color = LAYER_PALETTE[i % len(LAYER_PALETTE)]
+            vis[mask] = (
+                image[mask].astype(float) * 0.5 + color * 0.5
+            ).astype(np.uint8)
         qimg = QImage(vis.data, w, h, 3 * w, QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(qimg)
         self._pixmaps["layers"] = pixmap
         self._display_pixmap("layers", pixmap)
 
+        # Build layer legend entries
+        if centroids is not None:
+            # Sort by centroid value (ascending = near to far)
+            order = np.argsort(centroids.flatten())
+            entries = []
+            for rank, idx in enumerate(order):
+                color = LAYER_PALETTE[idx % len(LAYER_PALETTE)]
+                suffix = " (near)" if rank == 0 else (
+                    " (far)" if rank == len(order) - 1 else ""
+                )
+                entries.append((tuple(color.tolist()), f"Layer {idx}{suffix}"))
+            self._layer_legend_entries = entries
+        else:
+            self._layer_legend_entries = [
+                (tuple(LAYER_PALETTE[i % len(LAYER_PALETTE)].tolist()), f"Layer {i}")
+                for i in range(k)
+            ]
+
     def clear(self) -> None:
         """全画像をクリア。"""
         self._pixmaps.clear()
+        self._layer_legend_entries = []
+        self._depth_legend_entries = []
+        self._legend.clear()
         for lbl in self._labels.values():
             lbl.setPixmap(QPixmap())
             lbl.setText(tr("tab.no_image"))
@@ -209,6 +268,7 @@ class ImagePreview(QWidget):
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self._region_selector.setGeometry(self._stack.rect())
+        self._legend.setGeometry(self._stack.rect())
         # Re-display current pixmaps
         for key, pixmap in self._pixmaps.items():
             self._display_pixmap(key, pixmap)

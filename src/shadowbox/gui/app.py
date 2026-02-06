@@ -284,7 +284,10 @@ class ShadowboxApp(QMainWindow):
         if hasattr(result, "depth_map"):
             self.image_preview.set_depth_map(result.depth_map)
         if hasattr(result, "labels") and hasattr(result, "cropped_image"):
-            self.image_preview.set_labels(result.labels, result.cropped_image)
+            centroids = getattr(result, "centroids", None)
+            self.image_preview.set_labels(
+                result.labels, result.cropped_image, centroids
+            )
 
     def _on_processing_error(self, error_msg: str) -> None:
         from shadowbox.gui.i18n import tr
