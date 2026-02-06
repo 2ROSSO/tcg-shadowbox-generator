@@ -292,7 +292,7 @@ uv pip install git+https://github.com/tatsy/torchmcubes.git --no-build-isolation
 2. プロジェクトルート（pyproject.toml がある場所）の `TripoSR/`
 
 ### 注意
-- `rembg` は Python 3.11+ と依存関係競合があるため、オプション化済み
+- `rembg` は `triposr` optional extra に含まれる（onnxruntime 1.24+ で Python 3.11+ 対応済み）
 - `/TripoSR/` は `.gitignore` でルートのみ除外（`src/shadowbox/triposr` は含める）
 
 ---

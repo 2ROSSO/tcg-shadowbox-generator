@@ -89,7 +89,7 @@ result = pipeline.process(image)
 
 #### Notes
 
-- `rembg` (background removal) is optional due to dependency conflicts with Python 3.11+
+- `rembg` (background removal) is included in the `triposr` extra
 - The model (~1GB) is downloaded on first run
 - GPU (CUDA) recommended, but CPU is also supported (slower)
 
