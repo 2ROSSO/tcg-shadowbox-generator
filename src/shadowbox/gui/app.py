@@ -109,6 +109,7 @@ class ShadowboxApp(QMainWindow):
         self.action_buttons.generate_clicked.connect(self._process_image)
         self.action_buttons.view_3d_clicked.connect(self._show_3d_view)
         self.action_buttons.export_clicked.connect(self._export_mesh)
+        self.action_buttons.export_8dir_clicked.connect(self._export_8_direction)
         right_layout.addWidget(self.action_buttons)
 
         main_layout.addWidget(right_panel, stretch=1)
@@ -360,6 +361,38 @@ class ShadowboxApp(QMainWindow):
                 export_to_stl(self._result.mesh, file_path)
 
             self._status_bar.showMessage(tr("status.exported", path=file_path))
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                tr("dialog.error"),
+                tr("dialog.export_failed", error=e),
+            )
+
+    # ---- 8-Direction Export ----
+
+    def _export_8_direction(self) -> None:
+        if self._result is None:
+            return
+
+        from shadowbox.gui.i18n import tr
+
+        output_dir = QFileDialog.getExistingDirectory(
+            self,
+            tr("dialog.select_dir"),
+        )
+        if not output_dir:
+            return
+
+        try:
+            from shadowbox.visualization.render import ShadowboxRenderer
+
+            renderer = ShadowboxRenderer()
+            renderer.export_multi_angle_screenshots(
+                self._result.mesh, output_dir
+            )
+            self._status_bar.showMessage(
+                tr("status.8dir_done", path=output_dir)
+            )
         except Exception as e:
             QMessageBox.critical(
                 self,
