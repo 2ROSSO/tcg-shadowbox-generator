@@ -66,6 +66,7 @@ class ShadowboxApp(QMainWindow):
         load_language_preference()
 
         self._image: Image.Image | None = None
+        self._image_stem: str = "shadowbox"
         self._result = None
         self._bbox: BoundingBox | None = None
         self._thread = None
@@ -205,6 +206,7 @@ class ShadowboxApp(QMainWindow):
         )
         if file_path:
             try:
+                self._image_stem = Path(file_path).stem
                 self._image = Image.open(file_path).convert("RGB")
                 self.image_preview.set_image(self._image)
                 self.action_buttons.set_has_image(True)
@@ -329,12 +331,17 @@ class ShadowboxApp(QMainWindow):
         if self._result is None:
             return
 
+        from datetime import datetime
+
         from shadowbox.gui.i18n import tr
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_name = f"{self._image_stem}_{timestamp}"
 
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
             tr("dialog.export"),
-            "shadowbox",
+            default_name,
             "STL (*.stl);;OBJ (*.obj);;PLY (*.ply)",
         )
         if not file_path:
@@ -384,11 +391,16 @@ class ShadowboxApp(QMainWindow):
             return
 
         try:
+            from datetime import datetime
+
             from shadowbox.visualization.render import ShadowboxRenderer
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            prefix = f"{self._image_stem}_{timestamp}"
 
             renderer = ShadowboxRenderer()
             renderer.export_multi_angle_screenshots(
-                self._result.mesh, output_dir
+                self._result.mesh, output_dir, prefix=prefix
             )
             self._status_bar.showMessage(
                 tr("status.8dir_done", path=output_dir)
