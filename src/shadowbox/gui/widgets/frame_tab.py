@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from shadowbox.gui.i18n import tr
+
 
 class FrameTab(QWidget):
     """フレーム設定タブ。
@@ -33,18 +35,19 @@ class FrameTab(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
 
         # Include Frame
-        self.include_frame = QCheckBox("フレームを含める")
+        self.include_frame = QCheckBox(tr("frame.include"))
         self.include_frame.setChecked(True)
         layout.addWidget(self.include_frame)
 
         # Include Card Frame
-        self.include_card_frame = QCheckBox("カードフレームを含める")
+        self.include_card_frame = QCheckBox(tr("frame.include_card"))
         self.include_card_frame.setChecked(True)
         layout.addWidget(self.include_card_frame)
 
         # Frame Depth
         row = QHBoxLayout()
-        row.addWidget(QLabel("フレーム厚み:"))
+        self._lbl_depth = QLabel(tr("frame.depth"))
+        row.addWidget(self._lbl_depth)
         self.frame_depth = QDoubleSpinBox()
         self.frame_depth.setRange(0.1, 2.0)
         self.frame_depth.setSingleStep(0.1)
@@ -54,7 +57,8 @@ class FrameTab(QWidget):
 
         # Frame Wall Mode
         row = QHBoxLayout()
-        row.addWidget(QLabel("壁モード:"))
+        self._lbl_wall = QLabel(tr("frame.wall_mode"))
+        row.addWidget(self._lbl_wall)
         self.frame_wall_mode = QComboBox()
         self.frame_wall_mode.addItems(["none", "outer"])
         self.frame_wall_mode.setCurrentText("outer")
@@ -74,6 +78,13 @@ class FrameTab(QWidget):
     def _on_frame_toggled(self, checked: bool) -> None:
         self.frame_depth.setEnabled(checked)
         self.frame_wall_mode.setEnabled(checked)
+
+    def retranslate(self) -> None:
+        """言語変更時にUI文字列を更新。"""
+        self.include_frame.setText(tr("frame.include"))
+        self.include_card_frame.setText(tr("frame.include_card"))
+        self._lbl_depth.setText(tr("frame.depth"))
+        self._lbl_wall.setText(tr("frame.wall_mode"))
 
     def set_values(self, values: dict) -> None:
         """辞書から設定値を復元。"""

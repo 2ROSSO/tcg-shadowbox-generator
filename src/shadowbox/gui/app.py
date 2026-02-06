@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from shadowbox.config.template import BoundingBox
 
 try:
-    from PyQt6.QtGui import QAction
+    from PyQt6.QtGui import QAction, QActionGroup
     from PyQt6.QtWidgets import (
         QApplication,
         QFileDialog,
@@ -61,6 +61,10 @@ class ShadowboxApp(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
 
+        from shadowbox.gui.i18n import load_language_preference
+
+        load_language_preference()
+
         self._image: Image.Image | None = None
         self._result = None
         self._bbox: BoundingBox | None = None
@@ -70,6 +74,8 @@ class ShadowboxApp(QMainWindow):
         self._restore_defaults()
 
     def _init_ui(self) -> None:
+        from shadowbox.gui.i18n import tr
+
         self.setWindowTitle("TCG Shadowbox Generator")
         self.setMinimumSize(1000, 700)
 
@@ -110,39 +116,91 @@ class ShadowboxApp(QMainWindow):
         # Status bar
         self._status_bar = QStatusBar()
         self.setStatusBar(self._status_bar)
-        self._status_bar.showMessage("画像を読み込んでください")
+        self._status_bar.showMessage(tr("status.load_image"))
 
         self._progress_bar = QProgressBar()
         self._progress_bar.setVisible(False)
         self._status_bar.addPermanentWidget(self._progress_bar)
 
     def _create_menu_bar(self) -> None:
+        from shadowbox.gui.i18n import get_language, tr
+
         menubar = self.menuBar()
 
-        file_menu = menubar.addMenu("ファイル")
-        open_action = QAction("画像を開く...", self)
-        open_action.setShortcut("Ctrl+O")
-        open_action.triggered.connect(self._open_image)
-        file_menu.addAction(open_action)
-        file_menu.addSeparator()
-        exit_action = QAction("終了", self)
-        exit_action.setShortcut("Ctrl+Q")
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
+        # File menu
+        self._file_menu = menubar.addMenu(tr("menu.file"))
+        self._open_action = QAction(tr("menu.open"), self)
+        self._open_action.setShortcut("Ctrl+O")
+        self._open_action.triggered.connect(self._open_image)
+        self._file_menu.addAction(self._open_action)
+        self._file_menu.addSeparator()
+        self._exit_action = QAction(tr("menu.exit"), self)
+        self._exit_action.setShortcut("Ctrl+Q")
+        self._exit_action.triggered.connect(self.close)
+        self._file_menu.addAction(self._exit_action)
 
-        help_menu = menubar.addMenu("ヘルプ")
-        about_action = QAction("About", self)
-        about_action.triggered.connect(self._show_about)
-        help_menu.addAction(about_action)
+        # Language menu
+        self._lang_menu = menubar.addMenu(tr("menu.language"))
+        lang_group = QActionGroup(self)
+        lang_group.setExclusive(True)
+
+        self._lang_en = QAction("English", self)
+        self._lang_en.setCheckable(True)
+        self._lang_en.triggered.connect(lambda: self._change_language("en"))
+        lang_group.addAction(self._lang_en)
+        self._lang_menu.addAction(self._lang_en)
+
+        self._lang_ja = QAction("日本語", self)
+        self._lang_ja.setCheckable(True)
+        self._lang_ja.triggered.connect(lambda: self._change_language("ja"))
+        lang_group.addAction(self._lang_ja)
+        self._lang_menu.addAction(self._lang_ja)
+
+        current = get_language()
+        if current == "ja":
+            self._lang_ja.setChecked(True)
+        else:
+            self._lang_en.setChecked(True)
+
+        # Help menu
+        self._help_menu = menubar.addMenu(tr("menu.help"))
+        self._about_action = QAction(tr("menu.about"), self)
+        self._about_action.triggered.connect(self._show_about)
+        self._help_menu.addAction(self._about_action)
+
+    def _change_language(self, lang: str) -> None:
+        from shadowbox.gui.i18n import save_language_preference, set_language
+
+        set_language(lang)
+        save_language_preference()
+        self._retranslate_ui()
+
+    def _retranslate_ui(self) -> None:
+        from shadowbox.gui.i18n import tr
+
+        # Menus
+        self._file_menu.setTitle(tr("menu.file"))
+        self._open_action.setText(tr("menu.open"))
+        self._exit_action.setText(tr("menu.exit"))
+        self._lang_menu.setTitle(tr("menu.language"))
+        self._help_menu.setTitle(tr("menu.help"))
+        self._about_action.setText(tr("menu.about"))
+
+        # Child widgets
+        self.image_preview.retranslate()
+        self.settings_panel.retranslate()
+        self.action_buttons.retranslate()
 
     # ---- Image loading ----
 
     def _open_image(self) -> None:
+        from shadowbox.gui.i18n import tr
+
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "画像を開く",
+            tr("dialog.open_image"),
             "",
-            "画像ファイル (*.png *.jpg *.jpeg *.gif *.bmp);;すべてのファイル (*.*)",
+            tr("dialog.image_filter"),
         )
         if file_path:
             try:
@@ -152,23 +210,32 @@ class ShadowboxApp(QMainWindow):
                 self._result = None
                 self.action_buttons.set_has_result(False)
                 self._bbox = None
-                self._status_bar.showMessage(f"読み込み完了: {Path(file_path).name}")
+                self._status_bar.showMessage(
+                    tr("status.loaded", name=Path(file_path).name)
+                )
             except Exception as e:
                 QMessageBox.critical(
-                    self, "エラー", f"画像の読み込みに失敗しました:\n{e}"
+                    self,
+                    tr("dialog.error"),
+                    tr("dialog.load_failed", error=e),
                 )
 
     # ---- Region selection ----
 
     def _on_region_selected(self, x: int, y: int, w: int, h: int) -> None:
         from shadowbox.config.template import BoundingBox
+        from shadowbox.gui.i18n import tr
 
         self._bbox = BoundingBox(x=x, y=y, width=w, height=h)
-        self._status_bar.showMessage(f"領域選択: ({x}, {y}) {w}x{h}")
+        self._status_bar.showMessage(
+            tr("status.region_selected", x=x, y=y, w=w, h=h)
+        )
 
     def _on_region_cleared(self) -> None:
+        from shadowbox.gui.i18n import tr
+
         self._bbox = None
-        self._status_bar.showMessage("領域選択をクリア")
+        self._status_bar.showMessage(tr("status.region_cleared"))
 
     # ---- Processing ----
 
@@ -195,13 +262,18 @@ class ShadowboxApp(QMainWindow):
         self._thread.start()
 
     def _on_processing_finished(self, result) -> None:
+        from shadowbox.gui.i18n import tr
+
         self._result = result
         self._progress_bar.setVisible(False)
         self.action_buttons.set_has_image(True)
         self.action_buttons.set_has_result(True)
         self._status_bar.showMessage(
-            f"処理完了: {result.mesh.num_layers}レイヤー, "
-            f"{result.mesh.total_vertices:,}頂点"
+            tr(
+                "status.done",
+                layers=result.mesh.num_layers,
+                vertices=f"{result.mesh.total_vertices:,}",
+            )
         )
 
         # Update preview tabs
@@ -211,10 +283,16 @@ class ShadowboxApp(QMainWindow):
             self.image_preview.set_labels(result.labels, result.cropped_image)
 
     def _on_processing_error(self, error_msg: str) -> None:
+        from shadowbox.gui.i18n import tr
+
         self._progress_bar.setVisible(False)
         self.action_buttons.set_has_image(self._image is not None)
-        QMessageBox.critical(self, "エラー", f"処理に失敗しました:\n{error_msg}")
-        self._status_bar.showMessage("処理エラー")
+        QMessageBox.critical(
+            self,
+            tr("dialog.error"),
+            tr("dialog.process_failed", error=error_msg),
+        )
+        self._status_bar.showMessage(tr("status.error"))
 
     # ---- 3D View ----
 
@@ -229,7 +307,13 @@ class ShadowboxApp(QMainWindow):
             options = gui_to_render_options(gs)
             render_shadowbox(self._result.mesh, options)
         except Exception as e:
-            QMessageBox.critical(self, "エラー", f"3D表示に失敗しました:\n{e}")
+            from shadowbox.gui.i18n import tr
+
+            QMessageBox.critical(
+                self,
+                tr("dialog.error"),
+                tr("dialog.view3d_failed", error=e),
+            )
 
     # ---- Export ----
 
@@ -237,9 +321,11 @@ class ShadowboxApp(QMainWindow):
         if self._result is None:
             return
 
+        from shadowbox.gui.i18n import tr
+
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
-            "エクスポート",
+            tr("dialog.export"),
             "shadowbox",
             "STL (*.stl);;OBJ (*.obj);;PLY (*.ply)",
         )
@@ -266,22 +352,23 @@ class ShadowboxApp(QMainWindow):
                     file_path += ".stl"
                 export_to_stl(self._result.mesh, file_path)
 
-            self._status_bar.showMessage(f"エクスポート完了: {file_path}")
+            self._status_bar.showMessage(tr("status.exported", path=file_path))
         except Exception as e:
             QMessageBox.critical(
-                self, "エラー", f"エクスポートに失敗しました:\n{e}"
+                self,
+                tr("dialog.error"),
+                tr("dialog.export_failed", error=e),
             )
 
     # ---- About ----
 
     def _show_about(self) -> None:
+        from shadowbox.gui.i18n import tr
+
         QMessageBox.about(
             self,
             "About TCG Shadowbox Generator",
-            "TCG Shadowbox Generator\n\n"
-            "TCGカードのイラストを深度推定とクラスタリングで階層化し、\n"
-            "インタラクティブな3Dシャドーボックスとして表示するツール。\n\n"
-            "https://github.com/2ROSSO/shadowbox-generator",
+            tr("dialog.about_text"),
         )
 
     # ---- Defaults persistence ----
@@ -297,14 +384,15 @@ class ShadowboxApp(QMainWindow):
     def closeEvent(self, event) -> None:  # noqa: N802
         from dataclasses import asdict
 
+        from shadowbox.gui.i18n import tr
         from shadowbox.gui.settings_bridge import save_defaults
 
         current = self.settings_panel.get_gui_settings()
         if asdict(current) != asdict(self._initial_settings):
             reply = QMessageBox.question(
                 self,
-                "設定の保存",
-                "初期値を保存しますか？",
+                tr("dialog.save_settings"),
+                tr("dialog.save_settings_q"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if reply == QMessageBox.StandardButton.Yes:
@@ -315,8 +403,8 @@ class ShadowboxApp(QMainWindow):
 def main() -> None:
     """アプリケーションのエントリーポイント。"""
     if not PYQT_AVAILABLE:
-        print("エラー: PyQt6がインストールされていません。")
-        print("インストール方法: uv pip install PyQt6")
+        print("Error: PyQt6 is not installed.")
+        print("Install: uv pip install PyQt6")
         sys.exit(1)
 
     app = QApplication(sys.argv)

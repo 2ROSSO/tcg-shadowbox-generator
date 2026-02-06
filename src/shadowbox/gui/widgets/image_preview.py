@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from shadowbox.gui.i18n import tr
 from shadowbox.gui.region_selector import RegionSelector
 
 if TYPE_CHECKING:
@@ -50,8 +51,10 @@ class ImagePreview(QWidget):
         # Tab buttons (simple toggle row)
         tab_row = QHBoxLayout()
         self._tab_buttons: dict[str, QLabel] = {}
-        for key, label in [("original", "元画像"), ("depth", "深度"), ("layers", "レイヤー")]:
-            btn = QLabel(label)
+        self._tab_keys = ["original", "depth", "layers"]
+        self._tab_tr_keys = ["tab.original", "tab.depth", "tab.layers"]
+        for key, tr_key in zip(self._tab_keys, self._tab_tr_keys, strict=True):
+            btn = QLabel(tr(tr_key))
             btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
             btn.setStyleSheet(
                 "padding: 4px 12px; border: 1px solid #444; border-radius: 3px;"
@@ -62,7 +65,7 @@ class ImagePreview(QWidget):
             tab_row.addWidget(btn)
 
         # Region toggle
-        self._region_check = QCheckBox("領域選択")
+        self._region_check = QCheckBox(tr("tab.region_select"))
         self._region_check.toggled.connect(self._on_region_toggle)
         tab_row.addWidget(self._region_check)
 
@@ -71,8 +74,8 @@ class ImagePreview(QWidget):
         # Stacked image labels
         self._stack = QStackedWidget()
         self._labels: dict[str, QLabel] = {}
-        for key in ["original", "depth", "layers"]:
-            lbl = QLabel("画像なし")
+        for key in self._tab_keys:
+            lbl = QLabel(tr("tab.no_image"))
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             lbl.setMinimumSize(300, 300)
             lbl.setStyleSheet(
@@ -163,7 +166,7 @@ class ImagePreview(QWidget):
         self._pixmaps.clear()
         for lbl in self._labels.values():
             lbl.setPixmap(QPixmap())
-            lbl.setText("画像なし")
+            lbl.setText(tr("tab.no_image"))
         self._region_selector.clear_selection()
 
     def _display_pixmap(self, key: str, pixmap: QPixmap) -> None:
@@ -187,6 +190,16 @@ class ImagePreview(QWidget):
         y = (lbl_rect.height() - ph) // 2
         image_rect = QRect(x, y, pw, ph)
         self._region_selector.set_image_rect(image_rect, self._current_image_size)
+
+    def retranslate(self) -> None:
+        """言語変更時にUI文字列を更新。"""
+        for key, tr_key in zip(self._tab_keys, self._tab_tr_keys, strict=True):
+            self._tab_buttons[key].setText(tr(tr_key))
+        self._region_check.setText(tr("tab.region_select"))
+        # Update placeholder text for tabs without pixmaps
+        for key, lbl in self._labels.items():
+            if key not in self._pixmaps:
+                lbl.setText(tr("tab.no_image"))
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)

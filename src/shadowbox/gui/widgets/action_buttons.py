@@ -5,6 +5,8 @@ from __future__ import annotations
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QPushButton, QVBoxLayout, QWidget
 
+from shadowbox.gui.i18n import tr
+
 
 class ActionButtons(QWidget):
     """生成・3Dビュー・エクスポートのアクションボタン群。
@@ -25,18 +27,18 @@ class ActionButtons(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        self.generate_btn = QPushButton("シャドーボックス生成")
+        self.generate_btn = QPushButton(tr("btn.generate"))
         self.generate_btn.setObjectName("primary")
         self.generate_btn.setEnabled(False)
         self.generate_btn.clicked.connect(self.generate_clicked)
         layout.addWidget(self.generate_btn)
 
-        self.view_3d_btn = QPushButton("3Dビューを開く")
+        self.view_3d_btn = QPushButton(tr("btn.view_3d"))
         self.view_3d_btn.setEnabled(False)
         self.view_3d_btn.clicked.connect(self.view_3d_clicked)
         layout.addWidget(self.view_3d_btn)
 
-        self.export_btn = QPushButton("エクスポート...")
+        self.export_btn = QPushButton(tr("btn.export_3d"))
         self.export_btn.setEnabled(False)
         self.export_btn.clicked.connect(self.export_clicked)
         layout.addWidget(self.export_btn)
@@ -49,3 +51,9 @@ class ActionButtons(QWidget):
         """処理結果の有無に応じてボタンを有効化。"""
         self.view_3d_btn.setEnabled(has_result)
         self.export_btn.setEnabled(has_result)
+
+    def retranslate(self) -> None:
+        """言語変更時にUI文字列を更新。"""
+        self.generate_btn.setText(tr("btn.generate"))
+        self.view_3d_btn.setText(tr("btn.view_3d"))
+        self.export_btn.setText(tr("btn.export_3d"))

@@ -7,6 +7,7 @@ from dataclasses import asdict
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 
+from shadowbox.gui.i18n import tr
 from shadowbox.gui.settings_bridge import GuiSettings
 from shadowbox.gui.widgets.frame_tab import FrameTab
 from shadowbox.gui.widgets.layers_tab import LayersTab
@@ -35,10 +36,10 @@ class SettingsPanel(QWidget):
         self.frame_tab = FrameTab()
         self.rendering_tab = RenderingTab()
 
-        self.tabs.addTab(self.processing_tab, "処理")
-        self.tabs.addTab(self.layers_tab, "レイヤー")
-        self.tabs.addTab(self.frame_tab, "フレーム")
-        self.tabs.addTab(self.rendering_tab, "3D表示")
+        self.tabs.addTab(self.processing_tab, tr("settings.processing"))
+        self.tabs.addTab(self.layers_tab, tr("settings.layers"))
+        self.tabs.addTab(self.frame_tab, tr("settings.frame"))
+        self.tabs.addTab(self.rendering_tab, tr("settings.rendering"))
 
         layout.addWidget(self.tabs)
 
@@ -47,6 +48,17 @@ class SettingsPanel(QWidget):
         self.layers_tab.settings_changed.connect(self.settings_changed)
         self.frame_tab.settings_changed.connect(self.settings_changed)
         self.rendering_tab.settings_changed.connect(self.settings_changed)
+
+    def retranslate(self) -> None:
+        """言語変更時にUI文字列を更新。"""
+        self.tabs.setTabText(0, tr("settings.processing"))
+        self.tabs.setTabText(1, tr("settings.layers"))
+        self.tabs.setTabText(2, tr("settings.frame"))
+        self.tabs.setTabText(3, tr("settings.rendering"))
+        self.processing_tab.retranslate()
+        self.layers_tab.retranslate()
+        self.frame_tab.retranslate()
+        self.rendering_tab.retranslate()
 
     def set_gui_settings(self, gs: GuiSettings) -> None:
         """GuiSettings の値を全タブに配布。"""

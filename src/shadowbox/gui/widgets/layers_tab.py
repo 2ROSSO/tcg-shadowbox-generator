@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from shadowbox.gui.i18n import tr
+
 
 class LayersTab(QWidget):
     """レイヤーパラメータ設定タブ。
@@ -35,18 +37,19 @@ class LayersTab(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
 
         # Cumulative Layers
-        self.cumulative_layers = QCheckBox("累積レイヤー")
+        self.cumulative_layers = QCheckBox(tr("layer.cumulative"))
         self.cumulative_layers.setChecked(True)
         layout.addWidget(self.cumulative_layers)
 
         # Back Panel
-        self.back_panel = QCheckBox("背面パネル")
+        self.back_panel = QCheckBox(tr("layer.back_panel"))
         self.back_panel.setChecked(True)
         layout.addWidget(self.back_panel)
 
         # Layer Interpolation
         row = QHBoxLayout()
-        row.addWidget(QLabel("レイヤー補間:"))
+        self._lbl_interpolation = QLabel(tr("layer.interpolation"))
+        row.addWidget(self._lbl_interpolation)
         self.layer_interpolation = QSpinBox()
         self.layer_interpolation.setRange(0, 5)
         self.layer_interpolation.setValue(1)
@@ -55,7 +58,8 @@ class LayersTab(QWidget):
 
         # Layer Pop Out
         row = QHBoxLayout()
-        row.addWidget(QLabel("飛び出し量:"))
+        self._lbl_pop_out = QLabel(tr("layer.pop_out"))
+        row.addWidget(self._lbl_pop_out)
         self.pop_out_slider = QSlider(Qt.Orientation.Horizontal)
         self.pop_out_slider.setRange(0, 100)
         self.pop_out_slider.setValue(20)
@@ -70,7 +74,8 @@ class LayersTab(QWidget):
 
         # Spacing Mode
         row = QHBoxLayout()
-        row.addWidget(QLabel("間隔モード:"))
+        self._lbl_spacing = QLabel(tr("layer.spacing_mode"))
+        row.addWidget(self._lbl_spacing)
         self.spacing_mode = QComboBox()
         self.spacing_mode.addItems(["even", "proportional"])
         self.spacing_mode.setCurrentText("proportional")
@@ -79,7 +84,8 @@ class LayersTab(QWidget):
 
         # Mask Mode
         row = QHBoxLayout()
-        row.addWidget(QLabel("マスクモード:"))
+        self._lbl_mask = QLabel(tr("layer.mask_mode"))
+        row.addWidget(self._lbl_mask)
         self.mask_mode = QComboBox()
         self.mask_mode.addItems(["cluster", "contour"])
         self.mask_mode.setCurrentText("contour")
@@ -88,7 +94,8 @@ class LayersTab(QWidget):
 
         # Layer Thickness
         row = QHBoxLayout()
-        row.addWidget(QLabel("レイヤー厚み:"))
+        self._lbl_thickness = QLabel(tr("layer.thickness"))
+        row.addWidget(self._lbl_thickness)
         self.layer_thickness = QDoubleSpinBox()
         self.layer_thickness.setRange(0.01, 1.0)
         self.layer_thickness.setSingleStep(0.01)
@@ -98,7 +105,8 @@ class LayersTab(QWidget):
 
         # Layer Gap
         row = QHBoxLayout()
-        row.addWidget(QLabel("レイヤー隙間:"))
+        self._lbl_gap = QLabel(tr("layer.gap"))
+        row.addWidget(self._lbl_gap)
         self.layer_gap = QDoubleSpinBox()
         self.layer_gap.setRange(0.0, 0.5)
         self.layer_gap.setSingleStep(0.01)
@@ -126,6 +134,17 @@ class LayersTab(QWidget):
         self.mask_mode.currentIndexChanged.connect(self.settings_changed)
         self.layer_thickness.valueChanged.connect(self.settings_changed)
         self.layer_gap.valueChanged.connect(self.settings_changed)
+
+    def retranslate(self) -> None:
+        """言語変更時にUI文字列を更新。"""
+        self.cumulative_layers.setText(tr("layer.cumulative"))
+        self.back_panel.setText(tr("layer.back_panel"))
+        self._lbl_interpolation.setText(tr("layer.interpolation"))
+        self._lbl_pop_out.setText(tr("layer.pop_out"))
+        self._lbl_spacing.setText(tr("layer.spacing_mode"))
+        self._lbl_mask.setText(tr("layer.mask_mode"))
+        self._lbl_thickness.setText(tr("layer.thickness"))
+        self._lbl_gap.setText(tr("layer.gap"))
 
     def set_values(self, values: dict) -> None:
         """辞書から設定値を復元。"""

@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from shadowbox.gui.i18n import tr
+
 if TYPE_CHECKING:
     from PIL import Image
 
@@ -43,14 +45,14 @@ class ProcessingThread(QThread):
                 gui_to_shadowbox_settings,
             )
 
-            self.progress.emit("パイプラインを作成中...")
+            self.progress.emit(tr("progress.creating"))
             ss = gui_to_shadowbox_settings(self._settings)
             pipeline = create_pipeline(
                 settings=ss,
                 use_mock_depth=self._settings.use_mock_depth,
             )
 
-            self.progress.emit("処理中...")
+            self.progress.emit(tr("progress.processing"))
             kwargs = gui_to_process_kwargs(self._settings)
 
             # auto_detect は ProcessingThread 側で処理するため除去
@@ -66,7 +68,7 @@ class ProcessingThread(QThread):
                 kwargs[bbox_key] = self._bbox
             elif self._settings.detection_method != "none":
                 # RegionDetector で検出
-                self.progress.emit("イラスト領域を検出中...")
+                self.progress.emit(tr("progress.detecting"))
                 from shadowbox.detection.region import (
                     DETECTION_METHODS,
                     RegionDetector,

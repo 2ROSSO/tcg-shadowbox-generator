@@ -14,6 +14,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from shadowbox.gui.i18n import tr
+
 
 class ProcessingTab(QWidget):
     """処理パラメータ設定タブ。
@@ -35,7 +37,8 @@ class ProcessingTab(QWidget):
 
         # Model Mode
         row = QHBoxLayout()
-        row.addWidget(QLabel("モデルモード:"))
+        self._lbl_model_mode = QLabel(tr("proc.model_mode"))
+        row.addWidget(self._lbl_model_mode)
         self.model_mode = QComboBox()
         self.model_mode.addItems(["depth", "triposr"])
         row.addWidget(self.model_mode)
@@ -43,7 +46,8 @@ class ProcessingTab(QWidget):
 
         # Detection Method
         row = QHBoxLayout()
-        row.addWidget(QLabel("検出方法:"))
+        self._lbl_detection = QLabel(tr("proc.detection"))
+        row.addWidget(self._lbl_detection)
         self.detection_method = QComboBox()
         from shadowbox.detection.region import DETECTION_METHODS
 
@@ -52,16 +56,17 @@ class ProcessingTab(QWidget):
         layout.addLayout(row)
 
         # Mock Depth
-        self.mock_depth = QCheckBox("モック深度推定（テスト用）")
+        self.mock_depth = QCheckBox(tr("proc.mock_depth"))
         layout.addWidget(self.mock_depth)
 
         # Raw Depth
-        self.raw_depth = QCheckBox("生深度モード")
+        self.raw_depth = QCheckBox(tr("proc.raw_depth"))
         layout.addWidget(self.raw_depth)
 
         # Depth Scale
         row = QHBoxLayout()
-        row.addWidget(QLabel("深度スケール:"))
+        self._lbl_depth_scale = QLabel(tr("proc.depth_scale"))
+        row.addWidget(self._lbl_depth_scale)
         self.depth_scale = QDoubleSpinBox()
         self.depth_scale.setRange(0.1, 5.0)
         self.depth_scale.setSingleStep(0.1)
@@ -72,8 +77,9 @@ class ProcessingTab(QWidget):
 
         # Num Layers
         row = QHBoxLayout()
-        row.addWidget(QLabel("レイヤー数:"))
-        self.num_layers_auto = QCheckBox("自動")
+        self._lbl_num_layers = QLabel(tr("proc.num_layers"))
+        row.addWidget(self._lbl_num_layers)
+        self.num_layers_auto = QCheckBox(tr("proc.auto"))
         self.num_layers_auto.setChecked(True)
         row.addWidget(self.num_layers_auto)
         self.num_layers = QSpinBox()
@@ -85,8 +91,9 @@ class ProcessingTab(QWidget):
 
         # Max Resolution
         row = QHBoxLayout()
-        row.addWidget(QLabel("最大解像度:"))
-        self.max_res_unlimited = QCheckBox("無制限")
+        self._lbl_max_res = QLabel(tr("proc.max_resolution"))
+        row.addWidget(self._lbl_max_res)
+        self.max_res_unlimited = QCheckBox(tr("proc.unlimited"))
         self.max_res_unlimited.setChecked(True)
         row.addWidget(self.max_res_unlimited)
         self.max_resolution = QSpinBox()
@@ -124,6 +131,18 @@ class ProcessingTab(QWidget):
 
     def _on_unlimited_res_toggled(self, checked: bool) -> None:
         self.max_resolution.setEnabled(not checked)
+
+    def retranslate(self) -> None:
+        """言語変更時にUI文字列を更新。"""
+        self._lbl_model_mode.setText(tr("proc.model_mode"))
+        self._lbl_detection.setText(tr("proc.detection"))
+        self.mock_depth.setText(tr("proc.mock_depth"))
+        self.raw_depth.setText(tr("proc.raw_depth"))
+        self._lbl_depth_scale.setText(tr("proc.depth_scale"))
+        self._lbl_num_layers.setText(tr("proc.num_layers"))
+        self.num_layers_auto.setText(tr("proc.auto"))
+        self._lbl_max_res.setText(tr("proc.max_resolution"))
+        self.max_res_unlimited.setText(tr("proc.unlimited"))
 
     def set_values(self, values: dict) -> None:
         """辞書から設定値を復元。"""

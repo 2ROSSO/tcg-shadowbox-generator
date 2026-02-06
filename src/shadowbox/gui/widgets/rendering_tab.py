@@ -17,6 +17,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from shadowbox.gui.i18n import tr
+
 
 class RenderingTab(QWidget):
     """3D表示設定タブ。
@@ -41,7 +43,8 @@ class RenderingTab(QWidget):
 
         # Render Mode
         row = QHBoxLayout()
-        row.addWidget(QLabel("描画モード:"))
+        self._lbl_mode = QLabel(tr("render.mode"))
+        row.addWidget(self._lbl_mode)
         self.render_mode = QComboBox()
         self.render_mode.addItems(["points", "mesh"])
         row.addWidget(self.render_mode)
@@ -49,7 +52,7 @@ class RenderingTab(QWidget):
 
         # Point Size
         self._point_row = QHBoxLayout()
-        self._point_row_label = QLabel("ポイントサイズ:")
+        self._point_row_label = QLabel(tr("render.point_size"))
         self._point_row.addWidget(self._point_row_label)
         self.point_size_slider = QSlider(Qt.Orientation.Horizontal)
         self.point_size_slider.setRange(1, 10)
@@ -62,7 +65,7 @@ class RenderingTab(QWidget):
 
         # Mesh Size
         row = QHBoxLayout()
-        self._mesh_label = QLabel("メッシュサイズ:")
+        self._mesh_label = QLabel(tr("render.mesh_size"))
         row.addWidget(self._mesh_label)
         self.mesh_size = QDoubleSpinBox()
         self.mesh_size.setRange(0.001, 0.05)
@@ -75,17 +78,18 @@ class RenderingTab(QWidget):
         self.mesh_size.setVisible(False)
 
         # Show Axes
-        self.show_axes = QCheckBox("軸を表示")
+        self.show_axes = QCheckBox(tr("render.show_axes"))
         layout.addWidget(self.show_axes)
 
         # Show Frame
-        self.show_frame = QCheckBox("フレームを表示")
+        self.show_frame = QCheckBox(tr("render.show_frame"))
         self.show_frame.setChecked(True)
         layout.addWidget(self.show_frame)
 
         # Layer Opacity
         row = QHBoxLayout()
-        row.addWidget(QLabel("不透明度:"))
+        self._lbl_opacity = QLabel(tr("render.opacity"))
+        row.addWidget(self._lbl_opacity)
         self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
         self.opacity_slider.setRange(0, 100)
         self.opacity_slider.setValue(100)
@@ -97,7 +101,8 @@ class RenderingTab(QWidget):
 
         # Background Color
         row = QHBoxLayout()
-        row.addWidget(QLabel("背景色:"))
+        self._lbl_bg = QLabel(tr("render.bg_color"))
+        row.addWidget(self._lbl_bg)
         self.bg_color_btn = QPushButton()
         self._update_color_button()
         self.bg_color_btn.clicked.connect(self._pick_color)
@@ -132,7 +137,9 @@ class RenderingTab(QWidget):
 
     def _pick_color(self) -> None:
         r, g, b = self._bg_color
-        color = QColorDialog.getColor(QColor(r, g, b), self, "背景色を選択")
+        color = QColorDialog.getColor(
+            QColor(r, g, b), self, tr("dialog.pick_bg_color")
+        )
         if color.isValid():
             self._bg_color = (color.red(), color.green(), color.blue())
             self._update_color_button()
@@ -145,6 +152,16 @@ class RenderingTab(QWidget):
             f"border: 1px solid #666; min-width: 60px; min-height: 20px;"
         )
         self.bg_color_btn.setText(f"({r},{g},{b})")
+
+    def retranslate(self) -> None:
+        """言語変更時にUI文字列を更新。"""
+        self._lbl_mode.setText(tr("render.mode"))
+        self._point_row_label.setText(tr("render.point_size"))
+        self._mesh_label.setText(tr("render.mesh_size"))
+        self.show_axes.setText(tr("render.show_axes"))
+        self.show_frame.setText(tr("render.show_frame"))
+        self._lbl_opacity.setText(tr("render.opacity"))
+        self._lbl_bg.setText(tr("render.bg_color"))
 
     def set_values(self, values: dict) -> None:
         """辞書から設定値を復元。"""
