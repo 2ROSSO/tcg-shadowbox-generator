@@ -400,11 +400,12 @@ class ShadowboxApp(QMainWindow):
             prefix = f"{self._image_stem}_{timestamp}"
 
             renderer = ShadowboxRenderer()
-            renderer.export_multi_angle_screenshots(
+            saved = renderer.export_multi_angle_screenshots(
                 self._result.mesh, output_dir, prefix=prefix
             )
+            export_dir = saved[0].parent if saved else output_dir
             self._status_bar.showMessage(
-                tr("status.8dir_done", path=output_dir)
+                tr("status.8dir_done", path=str(export_dir))
             )
         except Exception as e:
             QMessageBox.critical(

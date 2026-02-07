@@ -318,22 +318,22 @@ class ShadowboxRenderer:
 
         import vedo
 
-        output_path = Path(output_dir)
+        output_path = Path(output_dir) / prefix
         output_path.mkdir(parents=True, exist_ok=True)
 
         focal = np.array([0.0, 0.0, -0.5])
-        distance = 3.5
+        distance = 4.5
         sqrt2 = math.sqrt(2.0)
 
         directions = [
-            ("left", 270, 0),
+            ("left", 315, 0),
             ("upper_left", 315, tilt_degrees / sqrt2),
             ("top", 0, tilt_degrees),
             ("upper_right", 45, tilt_degrees / sqrt2),
-            ("right", 90, 0),
-            ("lower_right", 135, -tilt_degrees / sqrt2),
+            ("right", 45, 0),
+            ("lower_right", 45, -tilt_degrees / sqrt2),
             ("bottom", 0, -tilt_degrees),
-            ("lower_left", 225, -tilt_degrees / sqrt2),
+            ("lower_left", 315, -tilt_degrees / sqrt2),
         ]
 
         saved_files: list[Path] = []
