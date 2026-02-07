@@ -453,6 +453,10 @@ class ShadowboxApp(QMainWindow):
         if loaded is not None:
             self.settings_panel.set_gui_settings(loaded)
         self._initial_settings = self.settings_panel.get_gui_settings()
+        # Tabs don't store region fields; preserve from loaded settings
+        if loaded is not None:
+            self._initial_settings.region_image_path = loaded.region_image_path
+            self._initial_settings.region_selection = loaded.region_selection
 
         # Auto-open last image (region is restored inside _open_image)
         if (

@@ -79,11 +79,27 @@ class TestRegionSelector:
         with qtbot.assertNotEmitted(sel.region_selected):
             sel.set_selection(10, 20, 50, 60)
 
-    def test_set_selection_empty_image_rect_noop(self, qtbot):
+    def test_set_selection_empty_image_rect_defers(self, qtbot):
         from shadowbox.gui.region_selector import RegionSelector
 
         sel = RegionSelector()
         qtbot.addWidget(sel)
-        # image_rect is empty by default
+        # image_rect is empty by default — widget rect deferred, image coords saved
         sel.set_selection(10, 20, 50, 60)
         assert sel._selection is None
+        assert sel._image_selection == (10, 20, 50, 60)
+
+    def test_set_selection_deferred(self, qtbot):
+        """set_selection before set_image_rect → applied when image_rect arrives."""
+        from shadowbox.gui.region_selector import RegionSelector
+
+        sel = RegionSelector()
+        qtbot.addWidget(sel)
+        # Set selection while image_rect is empty (deferred)
+        sel.set_selection(10, 20, 50, 60)
+        assert sel._selection is None
+        # Now provide image_rect — selection should be applied
+        sel.set_image_rect(QRect(0, 0, 200, 200), (200, 200))
+        result = sel.get_selection()
+        assert result is not None
+        assert result == (10, 20, 50, 60)

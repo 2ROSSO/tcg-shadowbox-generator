@@ -41,6 +41,8 @@ class RegionSelector(QWidget):
         self._image_rect: QRect = QRect()
         self._image_size: tuple[int, int] = (0, 0)
         self._active = False
+        # Image-coordinate selection for deferred apply and resize tracking
+        self._image_selection: tuple[int, int, int, int] | None = None
 
     def set_image_rect(self, rect: QRect, image_size: tuple[int, int]) -> None:
         """表示中の画像領域とオリジナルサイズを設定。
@@ -51,6 +53,9 @@ class RegionSelector(QWidget):
         """
         self._image_rect = rect
         self._image_size = image_size
+        # Reapply deferred or existing image-coordinate selection
+        if self._image_selection is not None:
+            self._reapply_selection()
 
     def set_active(self, active: bool) -> None:
         """選択モードの有効/無効を切り替え。"""
@@ -63,16 +68,33 @@ class RegionSelector(QWidget):
     def clear_selection(self) -> None:
         """選択をクリア。"""
         self._selection = None
+        self._image_selection = None
         self._start = None
         self._end = None
         self.update()
         self.region_cleared.emit()
 
     def set_selection(self, x: int, y: int, w: int, h: int) -> None:
-        """画像座標系で選択領域を設定（復元用）。シグナルは発行しない。"""
+        """画像座標系で選択領域を設定（復元用）。シグナルは発行しない。
+
+        image_rect が未設定の場合は画像座標のみ保存し、
+        後で set_image_rect が呼ばれた時点でウィジェット座標を計算する。
+        """
+        self._image_selection = (x, y, w, h)
+        self._start = None
+        self._end = None
         ir = self._image_rect
         if ir.isEmpty() or self._image_size == (0, 0):
+            # Defer widget-coordinate computation
             return
+        self._reapply_selection()
+
+    def _reapply_selection(self) -> None:
+        """_image_selection からウィジェット座標の QRect を再計算。"""
+        if self._image_selection is None:
+            return
+        x, y, w, h = self._image_selection
+        ir = self._image_rect
         iw, ih = self._image_size
         scale_x = ir.width() / iw
         scale_y = ir.height() / ih
@@ -81,8 +103,6 @@ class RegionSelector(QWidget):
         ww = int(w * scale_x)
         wh = int(h * scale_y)
         self._selection = QRect(wx, wy, ww, wh)
-        self._start = None
-        self._end = None
         self.update()
 
     def get_selection(self) -> tuple[int, int, int, int] | None:
@@ -102,6 +122,7 @@ class RegionSelector(QWidget):
             self._start = self._clamp_to_image(event.pos())
             self._end = self._start
             self._selection = None
+            self._image_selection = None
             self.update()
         elif event.button() == Qt.MouseButton.RightButton:
             self.clear_selection()
@@ -122,6 +143,7 @@ class RegionSelector(QWidget):
                 self._selection = rect
                 img_coords = self._widget_to_image(rect)
                 if img_coords:
+                    self._image_selection = img_coords
                     self.region_selected.emit(*img_coords)
             self._start = None
             self._end = None
