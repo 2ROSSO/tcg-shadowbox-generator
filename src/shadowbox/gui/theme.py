@@ -135,4 +135,7 @@ QProgressBar::chunk {
 QScrollArea {
     border: none;
 }
+QMessageBox QLabel {
+    color: #000;
+}
 """
