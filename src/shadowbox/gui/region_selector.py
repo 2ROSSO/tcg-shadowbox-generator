@@ -82,12 +82,10 @@ class RegionSelector(QWidget):
         if not self._active:
             return
         if event.button() == Qt.MouseButton.LeftButton:
-            pos = event.pos()
-            if self._image_rect.contains(pos):
-                self._start = pos
-                self._end = pos
-                self._selection = None
-                self.update()
+            self._start = self._clamp_to_image(event.pos())
+            self._end = self._start
+            self._selection = None
+            self.update()
         elif event.button() == Qt.MouseButton.RightButton:
             self.clear_selection()
 
