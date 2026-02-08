@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from PyQt6.QtCore import QRect, Qt, pyqtSignal
+from PyQt6.QtCore import QRect, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap, QResizeEvent
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -52,6 +52,7 @@ class ImagePreview(QWidget):
         self._current_image_size: tuple[int, int] = (0, 0)
         self._layer_legend_entries: list[tuple[tuple[int, int, int], str]] = []
         self._depth_legend_entries: list[tuple[tuple[int, int, int], str]] = []
+        self._needs_deferred_refresh = True
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -295,9 +296,24 @@ class ImagePreview(QWidget):
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
+        layout = self.layout()
+        if layout is not None:
+            layout.activate()
         self._region_selector.setGeometry(self._stack.rect())
         self._legend.setGeometry(self._stack.rect())
         # Re-display current pixmaps
+        for key, pixmap in self._pixmaps.items():
+            self._display_pixmap(key, pixmap)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if self._needs_deferred_refresh:
+            self._needs_deferred_refresh = False
+            QTimer.singleShot(0, self._deferred_refresh)
+
+    def _deferred_refresh(self) -> None:
+        self._region_selector.setGeometry(self._stack.rect())
+        self._legend.setGeometry(self._stack.rect())
         for key, pixmap in self._pixmaps.items():
             self._display_pixmap(key, pixmap)
 

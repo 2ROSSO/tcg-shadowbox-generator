@@ -71,6 +71,7 @@ class ShadowboxApp(QMainWindow):
         self._result = None
         self._bbox: BoundingBox | None = None
         self._thread = None
+        self._viewer_renderer = None
 
         self._init_ui()
         self._restore_defaults()
@@ -269,6 +270,8 @@ class ShadowboxApp(QMainWindow):
     def _process_image(self) -> None:
         if self._image is None:
             return
+        if self._viewer_renderer is not None:
+            self._viewer_renderer.close()
 
         self.action_buttons.generate_btn.setEnabled(False)
         self.action_buttons.set_has_result(False)
@@ -331,11 +334,13 @@ class ShadowboxApp(QMainWindow):
             return
         try:
             from shadowbox.gui.settings_bridge import gui_to_render_options
-            from shadowbox.visualization import render_shadowbox
+            from shadowbox.visualization.render import ShadowboxRenderer
 
             gs = self.settings_panel.get_gui_settings()
             options = gui_to_render_options(gs)
-            render_shadowbox(self._result.mesh, options)
+            renderer = ShadowboxRenderer(options)
+            self._viewer_renderer = renderer
+            renderer.render(self._result.mesh)
         except Exception as e:
             from shadowbox.gui.i18n import tr
 
@@ -344,6 +349,8 @@ class ShadowboxApp(QMainWindow):
                 tr("dialog.error"),
                 tr("dialog.view3d_failed", error=e),
             )
+        finally:
+            self._viewer_renderer = None
 
     # ---- Export ----
 
