@@ -267,6 +267,18 @@ class TestRenderWithoutDisplay:
         assert plotter is not None
         renderer.close()
 
+    def test_render_has_reset_button(self, sample_mesh: ShadowboxMesh) -> None:
+        """Reset View ボタンが追加されることを確認。"""
+        if not _vedo_available():
+            pytest.skip("Vedo is not available")
+
+        options = RenderOptions(interactive=False)
+        renderer = ShadowboxRenderer(options)
+        plotter = renderer.render(sample_mesh, show=False)
+
+        assert len(plotter.buttons) > 0
+        renderer.close()
+
     def test_render_mesh_no_frame(self, sample_mesh_no_frame: ShadowboxMesh) -> None:
         """フレームなしメッシュのレンダリングをテスト。"""
         if not _vedo_available():

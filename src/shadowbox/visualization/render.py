@@ -165,11 +165,8 @@ class ShadowboxRenderer:
         self._plotter.add(actors)
 
         # カメラ位置を調整（正面から少し斜めに）
-        # K3Dバックエンドではカメラ操作がサポートされないためスキップ
-        if self._plotter.camera is not None:
-            self._plotter.camera.SetPosition(0, 0, 3)
-            self._plotter.camera.SetFocalPoint(0, 0, -0.5)
-            self._plotter.camera.SetViewUp(0, 1, 0)
+        self._setup_camera()
+        self._add_reset_button()
 
         if show:
             self._plotter.show(interactive=self._options.interactive)
@@ -234,6 +231,8 @@ class ShadowboxRenderer:
             actors.append(label)
 
         self._plotter.add(actors)
+        self._setup_camera()
+        self._add_reset_button()
         self._plotter.show(interactive=self._options.interactive)
 
         return self._plotter
@@ -388,6 +387,34 @@ class ShadowboxRenderer:
                 saved_files.append(filepath)
 
         return saved_files
+
+    def _setup_camera(self) -> None:
+        """カメラを初期位置にセット。"""
+        if self._plotter is not None and self._plotter.camera is not None:
+            self._plotter.camera.SetPosition(0, 0, 3)
+            self._plotter.camera.SetFocalPoint(0, 0, -0.5)
+            self._plotter.camera.SetViewUp(0, 1, 0)
+
+    def _add_reset_button(self) -> None:
+        """ビューリセットボタンを追加。"""
+        if self._plotter is None:
+            return
+
+        def reset_camera(obj, ename):  # noqa: ANN001
+            self._setup_camera()
+            if self._plotter is not None:
+                self._plotter.render()
+
+        self._plotter.add_button(
+            reset_camera,
+            states=["Reset View"],
+            pos=(0.85, 0.95),
+            size=24,
+            font="Courier",
+            bold=True,
+            c=["white"],
+            bc=["gray"],
+        )
 
     def _create_frame_mesh(self, frame: FrameMesh) -> vedo.Mesh | None:
         """フレームメッシュをVedoメッシュに変換。
