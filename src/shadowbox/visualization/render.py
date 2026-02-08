@@ -390,12 +390,10 @@ class ShadowboxRenderer:
 
     def _setup_camera(self) -> None:
         """カメラを初期位置にセット。"""
+        if self._plotter is not None and self._plotter.renderer:
+            self._plotter.renderer.ResetCamera()
         if self._plotter is not None and self._plotter.camera is not None:
-            self._plotter.camera.SetPosition(0, 0, 3)
-            self._plotter.camera.SetFocalPoint(0, 0, -0.5)
             self._plotter.camera.SetViewUp(0, 1, 0)
-            if self._plotter.renderer:
-                self._plotter.renderer.ResetCameraClippingRange()
 
     def _add_reset_button(self) -> None:
         """ビューリセットボタンを追加。"""
